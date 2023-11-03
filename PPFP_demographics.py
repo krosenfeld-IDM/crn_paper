@@ -45,8 +45,6 @@ class PPFP(ss.Pregnancy):
         postpartum = ~self.pregnant & (self.ti_postpartum <= sim.ti)
         cov = self.pars.coverage
         uids = self.rng_ppfp.bernoulli_filter(ss.true(postpartum & ~self.ppfp), prob=cov)
-        if len(uids) > 0:
-            print('hi')
         self.ppfp[uids] = True
         self.ti_ppfp[uids] = sim.ti
 

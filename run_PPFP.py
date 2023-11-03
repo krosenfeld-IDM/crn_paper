@@ -41,15 +41,14 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
     }
 
     ppfp_pars = {
-        'efficacy': 0.75,
-        'coverage': 1,
+        'efficacy': 0.95,
+        'coverage': 0.01,
     }
     if intervention:
         preg = PPFP(ppfp_pars)
     else:
         ppfp_pars['coverage'] = 0
         preg = PPFP(ppfp_pars)
-        #preg = ss.Pregnancy()
 
     sim = ss.Sim(people=ppl, diseases=[], demographics=[preg, ss.background_deaths()], pars=pars, label=lbl)
     sim.initialize()
