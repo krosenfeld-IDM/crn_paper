@@ -3,10 +3,8 @@ Define pregnancy for the MNCH example
 """
 
 import numpy as np
-import stisim as ss
-import sciris as sc
-import pandas as pd
-import stisim as ss
+import starsim as ss
+import scipy.stats as sps
 
 __all__ = ['PPFP']
 
@@ -26,7 +24,7 @@ class PPFP(ss.Pregnancy):
             'efficacy': 0.75,  # Rate ratio of fertility reduction for women on PPFP
         }, self.pars)
 
-        self.rng_ppfp = ss.Stream(f'ppfp_{self.name}') # To determine which women receive the intervention
+        self.p_ppfp = sps.bernoulli(p=self.pars.coverage) # To determine which women receive the intervention
         return
 
     def initialize(self, sim):
@@ -43,13 +41,13 @@ class PPFP(ss.Pregnancy):
 
         # Add postpartum women to ppfp
         postpartum = ~self.pregnant & (self.ti_postpartum <= sim.ti)
-        cov = self.pars.coverage
-        uids = self.rng_ppfp.bernoulli_filter(ss.true(postpartum & ~self.ppfp), prob=cov)
+        uids = self.p_ppfp.filter(postpartum & ~self.ppfp)
         self.ppfp[uids] = True
         self.ti_ppfp[uids] = sim.ti
 
         return
 
+    '''
     def make_pregnancies(self, sim):
         """
         Select people to make pregnancy using incidence data
@@ -94,6 +92,26 @@ class PPFP(ss.Pregnancy):
                 self.set_prognoses(sim, uids) # Could set from_uids to network partners?
 
         return
+        '''
+    
+    def make_pregnancies(self, sim):
+        """
+        Select people to make pregnant using incidence data
+        """
+        # Abbreviate
+        ppl = sim.people
+
+        # People eligible to become pregnant. We don't remove pregnant people here, these
+        # are instead handled in the fertility_dist logic as the rates need to be adjusted
+        denom_conds = ppl.female & ppl.alive
+        inds_to_choose_from = ss.true(denom_conds)
+        conceive_uids = self.pars.fertility_rate.filter(inds_to_choose_from)
+
+        # Set prognoses for the pregnancies
+        if len(conceive_uids) > 0:
+            self.set_prognoses(sim, conceive_uids)
+
+        return conceive_uids
 
     def update_results(self, sim):
         self.results['n_ppfp'][sim.ti] = np.count_nonzero(self.ppfp)

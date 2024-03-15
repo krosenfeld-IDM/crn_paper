@@ -3,7 +3,7 @@ Compare two HIV simulations, one baseline and the other with ART
 """
 
 # %% Imports and settings
-import stisim as ss
+import starsim as ss
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -13,9 +13,9 @@ import os
 import argparse
 import sciris as sc
 
-default_n_agents = 25
+default_n_agents = 50
 # Three choices for network here, note that only the first two are stream safe
-network = ['stable_monogamy', 'embedding', 'hpv_network'][1]
+network = ['stable_monogamy', 'EmbeddingNet', 'hpv_network'][1]
 
 do_plot_graph = True
 # Several choices for how to layout the graph when plotting
@@ -24,10 +24,30 @@ kind = ['radial', 'bipartite', 'spring', 'multipartite'][1]
 do_plot_longitudinal = True
 do_plot_timeseries = True
 
-ss.options(multistream = True) # Can set multistream to False for comparison
+# on branch fix_348
+#options.rng can take values in ['centralized', 'single', 'multi']
+ss.options(rng = 'multi')
 
 figdir = os.path.join(os.getcwd(), 'figs', network)
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
+
+class stable_monogamy(ss.SexualNetwork):
+    """
+    Very simple network for debugging in which edges are:
+    1-2, 3-4, 5-6, ...
+    """
+    def __init__(self, **kwargs):
+        # Call init for the base class, which sets all the keys
+        super().__init__(**kwargs)
+        return
+
+    def initialize(self, sim):
+        n = len(sim.people._uid_map)
+        n_edges = n//2
+        self.contacts.p1 = np.arange(0, 2*n_edges, 2) # EVEN
+        self.contacts.p2 = np.arange(1, 2*n_edges, 2) # ODD
+        self.contacts.beta = np.ones(n_edges)
+        return
 
 class Graph():
     def __init__(self, nodes, edges):
@@ -85,7 +105,7 @@ class GraphAnalyzer(ss.Analyzer):
             'cd4': sim.people.hiv.cd4.values,
         })
 
-        edges = sim.people.networks[network].to_df()
+        edges = sim.networks[network.lower()].to_df()
 
         idx = sim.ti if not init else -1
         self.graphs[idx] = Graph(nodes, edges)
@@ -100,10 +120,10 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
     ppl = ss.People(n)
 
     net_class = getattr(ss, network)
-    ppl.networks = ss.ndict(net_class(), ss.maternal())
+    networks = [net_class(), ss.MaternalNet()]
 
     hiv_pars = {
-        'beta': {network: [0.3, 0.25], 'maternal': [0.2, 0]},
+        'beta': {network: [0.3, 0.25], 'Maternal': [0.2, 0]},
         'init_prev': 0.25,
         'art_efficacy': 0.96,
     }
@@ -119,7 +139,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
         'rand_seed': rand_seed,
         'analyzers': [GraphAnalyzer()] if analyze else [],
     }
-    sim = ss.Sim(people=ppl, diseases=[hiv], demographics=[ss.Pregnancy(), ss.background_deaths()], pars=pars, label=lbl)
+    sim = ss.Sim(people=ppl, diseases=[hiv], networks=networks, demographics=[ss.Pregnancy(fertility_rate=20), ss.Deaths(death_rate=10)], pars=pars, label=lbl)
     sim.initialize()
 
     # Infect every other person, useful for exploration in conjunction with init_prev=0
@@ -133,7 +153,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
 def run_scenario(n=10, rand_seed=0, analyze=True):
     sims = sc.parallelize(run_sim,
                           kwargs={'n':n, 'analyze': analyze, 'rand_seed': rand_seed},
-                          iterkwargs=[{'intervention':False, 'lbl':'Baseline'}, {'intervention':True, 'lbl':'Intervention'}], die=True)
+                          iterkwargs=[{'intervention':False, 'lbl':'Baseline'}, {'intervention':True, 'lbl':'Intervention'}], die=False)
 
     for i, sim in enumerate(sims):
         sim.save(os.path.join(figdir, f'sim{i}.obj'))

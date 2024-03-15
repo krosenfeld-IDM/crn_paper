@@ -3,12 +3,10 @@ Compare two HIV simulations, one baseline and the other with ART
 """
 
 # %% Imports and settings
-import stisim as ss
+import starsim as ss
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import networkx as nx
-import sys
 import os
 import argparse
 import sciris as sc
@@ -20,16 +18,23 @@ default_n_agents = 100
 do_plot_longitudinal = True
 do_plot_timeseries = True
 
-ss.options(multistream = True) # Can set multistream to False for comparison
+ss.options(rng = 'multi') # Can set rng to any value in ['centralize', 'single', 'multi']
 
 figdir = os.path.join(os.getcwd(), 'figs', 'PPFP')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 
+def fertility_prob_fn(module, sim, uids):
+    fertility_rate = module.pars.fertility_rate * np.ones(uids)
+
+    # Scale from rate to probability. Consider an exponential here.
+    fertility_prob = fertility_rate * (module.pars.units * module.pars.rel_fertility * sim.pars.dt)
+    fertility_prob = np.clip(fertility_prob, a_min=0, a_max=1)
+
+    return fertility_prob
+
 def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
     ppl = ss.People(n)
-
-    ppl.networks = ss.ndict(ss.maternal())
 
     pars = {
         'start': 1980,
@@ -41,6 +46,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
     }
 
     ppfp_pars = {
+        'fertility_rate': fertility_prob_fn, # Custom function
         'efficacy': 0.95,
         'coverage': 0.01,
     }
@@ -50,7 +56,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
         ppfp_pars['coverage'] = 0
         preg = PPFP(ppfp_pars)
 
-    sim = ss.Sim(people=ppl, diseases=[], demographics=[preg, ss.background_deaths()], pars=pars, label=lbl)
+    sim = ss.Sim(people=ppl, diseases=[], demographics=[preg, ss.Deaths(death_rate=10)], networks=ss.MaternalNet(), pars=pars, label=lbl)
     sim.initialize()
 
     sim.run()

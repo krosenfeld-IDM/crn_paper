@@ -1,15 +1,19 @@
 """
-Exploring singlerng vs rng for a model HIV system sweeping coverage of ART.
+Static networks with SIR disease dynamics // vaccination
 """
 
 # %% Imports and settings
 import os
 import starsim as ss
 import scipy.stats as sps
+import matplotlib.pyplot as plt
 import sciris as sc
 import pandas as pd
 import seaborn as sns
 import numpy as np
+import networkx as nx
+
+sc.options(interactive=False) # Assume not running interactively
 
 # Suppress warning from seaborn
 import warnings
@@ -18,11 +22,11 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 rngs = ['centralized', 'single', 'multi']
 
-n = 10_000 # Agents
-n_rand_seeds = 100
-intv_cov_levels = [0.01, 0.10, 0.25, 0.73] + [0] # Must include 0 as that's the baseline
+n = 1_000 # Agents
+n_rand_seeds = 25
+intv_cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the baseline
 
-figdir = os.path.join(os.getcwd(), 'figs', 'ART')
+figdir = os.path.join(os.getcwd(), 'figs', 'SIR')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 def run_sim(n, idx, intv_cov, rand_seed, rng):
@@ -30,25 +34,30 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
     print(f'Starting sim {idx} with rand_seed={rand_seed} and intv_cov={intv_cov}, rng={rng}')
 
     ppl = ss.People(n)
+    # watts_strogatz_graph, erdos_renyi_graph, grid_2d_graph, configuration_model, line_graph, barabasi_albert_graph, scale_free_graph, complete_graph, maybe a tree
+    #G = nx.gnp_random_graph(n, p=3/n, seed=rand_seed) #G=nx.erdos_renyi_graph(n, p=3/n, seed=rand_seed)
+    G=nx.barabasi_albert_graph(n=n, m=1, seed=rand_seed)
+    #G=nx.complete_graph(n)
+    networks = ss.StaticNet(G)
 
-    en_pars = dict(duration=sps.weibull_min(c=1.5, scale=3)) # c is shape, gives a mean of about 0.9*scale years.
-    networks = ss.ndict(ss.EmbeddingNet(en_pars), ss.MaternalNet())
-
-    hiv_pars = {
-        'beta': {'embedding': [0.08, 0.06], 'maternal': [0.3, 0]},
-        'init_prev': np.maximum(5/n, 0.01),
-        'art_efficacy': 0.96,
-        'death_prob': 0.06,
+    sir_pars = {
+        'beta': 30,
+        'dur_inf': sps.weibull_min(c=1, scale=30/365), # When c=1, it's an exponential
+        #'dur_inf': sps.weibull_min(c=3, scale=33.5/365), # Can check sir_pars['dur_inf'].mean()
+        'init_prev': 0,  # Will seed manually
+        'p_death': 0, # No death
     }
-    hiv = ss.HIV(hiv_pars)
-
-    pregnancy = ss.Pregnancy(fertility_rate=20)
-    deaths = ss.Deaths(death_rate=10)
+    if idx == 0:
+        fig = plot_degree(G)
+        fig.savefig(os.path.join(figdir, 'degree.png'), bbox_inches='tight', dpi=300)
+        plt.close(fig)
+        print(f'Mean duration of infection is {sir_pars["dur_inf"].mean() * 365} days')
+    sir = ss.SIR(sir_pars)
 
     pars = {
-        'start': 1980,
-        'end': 2070,
-        'dt': 1/12,
+        'start': 2020,
+        'end': 2020.5,
+        'dt': 1/365,
         'rand_seed': rand_seed,
         'verbose': 0,
         'remove_dead': True,
@@ -56,19 +65,32 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
     }
 
     if intv_cov > 0:
-        pars['interventions'] = [ ss.hiv.ART(year=[2004, 2020], coverage=[0, intv_cov]) ]
+        # Create the product - a vaccine with 80% efficacy
+        MyVaccine = ss.sir_vaccine(pars=dict(efficacy=0.8))
 
-    sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], pars=pars,
+        # Create the intervention
+        MyIntervention = ss.campaign_vx(
+            years = 2020.1, #[pars['start']],
+            prob = intv_cov,
+            annual_prob = False,
+            product=MyVaccine
+        )
+        pars['interventions'] = [ MyIntervention ]
+
+    sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars,
             label=f'Sim with {n} agents and intv_cov={intv_cov}')
     sim.initialize()
+
+    # Infect agent zero to start the simulation
+    sim.diseases.sir.set_prognoses(sim, uids=np.array([0]), source_uids=None)
+
     sim.run()
 
     df = pd.DataFrame( {
         'year': sim.yearvec,
-        #'hiv.n_infected': sim.results.hiv.n_infected, # Optional, but mostly redundant with prevalence
-        'hiv.prevalence': sim.results.hiv.prevalence,
-        'hiv.cum_deaths': sim.results.hiv.new_deaths.cumsum(),
-        'pregnancy.cum_births': sim.results.pregnancy.births.cumsum(),
+        'sir.n_susceptible': sim.results.sir.n_susceptible,
+        'sir.n_infected': sim.results.sir.n_infected,
+        'sir.n_recovered': sim.results.sir.n_recovered,
     })
     df['intv_cov'] = intv_cov
     df['rand_seed'] = rand_seed
@@ -141,6 +163,38 @@ def plot_scenarios(df):
     return
 
 
+def plot_degree(G):
+    # Code based on https://networkx.org/documentation/stable/auto_examples/drawing/plot_degree.html
+    degree_sequence = sorted((d for n, d in G.degree()), reverse=True)
+
+    fig = plt.figure("Degree of a random graph", figsize=(8, 8))
+    # Create a gridspec for adding subplots of different sizes
+    axgrid = fig.add_gridspec(5, 4)
+
+    ax0 = fig.add_subplot(axgrid[0:3, :])
+    pos = nx.spring_layout(G, seed=10396954)
+    nx.draw_networkx_nodes(G, pos, ax=ax0, node_size=20)
+    nx.draw_networkx_edges(G, pos, ax=ax0, alpha=0.4)
+    ax0.set_title("Graph")
+    ax0.set_axis_off()
+
+    ax1 = fig.add_subplot(axgrid[3:, :2])
+    ax1.plot(degree_sequence, "b-", marker="o")
+    ax1.set_title("Degree Rank Plot")
+    ax1.set_ylabel("Degree")
+    ax1.set_xlabel("Rank")
+
+    ax2 = fig.add_subplot(axgrid[3:, 2:])
+    ax2.bar(*np.unique(degree_sequence, return_counts=True))
+    ax2.set_title("Degree histogram")
+    ax2.set_xlabel("Degree")
+    ax2.set_ylabel("# of Nodes")
+
+    fig.tight_layout()
+    return fig
+
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -156,4 +210,8 @@ if __name__ == '__main__':
         df = run_scenarios()
 
     plot_scenarios(df)
+    
+    #df = run_sim(n, idx=0, intv_cov=0, rand_seed=0, rng='multi')
+    #print(df)
+
     print('Done')
