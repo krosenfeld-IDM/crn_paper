@@ -23,7 +23,6 @@ class PPH(ss.Pregnancy):
         super().__init__(pars, **kwargs)
 
         self.add_states(
-            ss.State('maternal_death', bool, False),  # Indicator (by mother uid) of maternal mortality
             ss.State('mother_died', bool, False),  # Indicator (by child uid) of maternal mortality
         )
         self.p_infant_death = sps.bernoulli(p=p_infant_death) # Probability calculated below
@@ -42,6 +41,7 @@ class PPH(ss.Pregnancy):
         super().init_results(sim)
         self.results += [
             ss.Result(self.name, 'infant_deaths', sim.npts, dtype=int, scale=True),
+            ss.Result(self.name, 'maternal_deaths', sim.npts, dtype=int, scale=True),
         ]
         return
 
@@ -59,8 +59,8 @@ class PPH(ss.Pregnancy):
             infant_uids = mn.loc[mn['p1'].isin(deliveries)]['p2'].values # Find infants, not using find_contacts because that is bidirectional
 
             maternal_deaths = ss.true(self.ti_dead <= sim.ti)
+            self.results['maternal_deaths'][sim.ti] = len(maternal_deaths)
             if np.any(maternal_deaths):
-                self.maternal_death[maternal_deaths] = True
                 infant_uids_mm = mn.loc[mn['p1'].isin(maternal_deaths)]['p2'].values # Find infants, not using find_contacts because that is bidirectional
                 self.mother_died[infant_uids_mm] = True
 

@@ -66,7 +66,9 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, pph_intv
 
     df = pd.DataFrame( {
         'year': sim.yearvec,
+        #'pph.mother_died.cumsum': sim.results.pph.mother_died.cumsum(),
         'pph.births.cumsum': sim.results.pph.births.cumsum(),
+        'pph.maternal_deaths.cumsum': sim.results.pph.maternal_deaths.cumsum(),
         'pph.infant_deaths.cumsum': sim.results.pph.infant_deaths.cumsum(),
     })
     df['pph_intv'] = pph_intv
