@@ -20,10 +20,10 @@ import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-rngs = ['centralized', 'single', 'multi']
+rngs = ['centralized', 'multi'] # 'single', 
 
-n = 1_000 # Agents
-n_rand_seeds = 25
+n = 5_000 # Agents
+n_rand_seeds = 1_000
 intv_cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the baseline
 
 figdir = os.path.join(os.getcwd(), 'figs', 'SIR')
@@ -47,11 +47,7 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
         'init_prev': 0,  # Will seed manually
         'p_death': 0, # No death
     }
-    if idx == 0:
-        fig = plot_degree(G)
-        fig.savefig(os.path.join(figdir, 'degree.png'), bbox_inches='tight', dpi=300)
-        plt.close(fig)
-        print(f'Mean duration of infection is {sir_pars["dur_inf"].mean() * 365} days')
+
     sir = ss.SIR(sir_pars)
 
     pars = {
@@ -82,6 +78,7 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
     sim.initialize()
 
     # Infect agent zero to start the simulation
+    # WARNING: Graph algorithms may place agent 0 non-randomly
     sim.diseases.sir.set_prognoses(sim, uids=np.array([0]), source_uids=None)
 
     sim.run()
@@ -95,6 +92,12 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
     df['intv_cov'] = intv_cov
     df['rand_seed'] = rand_seed
     df['rng'] = rng
+
+    if idx == 0:
+        fig = plot_graph(G)
+        fig.savefig(os.path.join(figdir, 'graph.png'), bbox_inches='tight', dpi=300)
+        plt.close(fig)
+        print(f'Mean duration of infection is {sir_pars["dur_inf"].mean() * 365} days')
 
     print(f'Finishing sim {idx} with rand_seed={rand_seed} and intv_cov={intv_cov}, rng={rng}')
 
@@ -130,6 +133,9 @@ def plot_scenarios(df):
     mrg['Value - Reference'] = mrg['Value'] - mrg['Value_ref']
     mrg = mrg.sort_index()
 
+    cor = mrg.groupby(['year', 'channel', 'rng', 'intv_cov'])[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
+    cor.name = 'Pearson'
+
     fkw = {'sharey': False, 'sharex': 'col', 'margin_titles': True}
 
     ## TIMESERIES
@@ -149,6 +155,15 @@ def plot_scenarios(df):
         g.set_xlabels('Year')
         g.figure.savefig(os.path.join(figdir, f'diff_{ms}.png'), bbox_inches='tight', dpi=300)
 
+    ## CORRELATION OVER TIME
+    g = sns.relplot(kind='line', data=cor.to_frame(), x='year', y='Pearson', hue='rng', hue_order=rngs, col='channel',
+            row='intv_cov', height=3, aspect=1.0, palette='Set1', errorbar='sd', lw=1, facet_kws=fkw)
+    g.set_titles(col_template='{col_name}', row_template='Coverage: {row_name}')
+    #g.figure.suptitle('MultiRNG' if ms else 'SingleRNG')
+    g.figure.subplots_adjust(top=0.88)
+    g.set_xlabels('Year')
+    g.figure.savefig(os.path.join(figdir, 'cor.png'), bbox_inches='tight', dpi=300)
+
     ## FINAL TIME
     tf = df['year'].max()
     mtf = mrg.loc[tf]
@@ -158,12 +173,21 @@ def plot_scenarios(df):
     g.set_xlabels(f'Value - Reference at year {tf}')
     g.figure.savefig(os.path.join(figdir, 'final.png'), bbox_inches='tight', dpi=300)
 
+    ## COR SCATTER FINAL TIME
+    ctf = mtf.reset_index('rand_seed').set_index('intv_cov', append=True).sort_index()
+    g = sns.relplot(data=ctf, kind='scatter', hue='rng', hue_order=rngs, style='rng', style_order=rngs, x='Value_ref', y='Value',
+            col='channel', row='intv_cov', height=5, aspect=1.2, facet_kws=fkw, palette='Set1')
+    g.set_titles(col_template='{col_name}', row_template='Coverage: {row_name}')
+    g.set_xlabels(f'Reference at year {tf}')
+    g.set_ylabels(f'Value at year {tf}')
+    g.figure.savefig(os.path.join(figdir, 'cor_final.png'), bbox_inches='tight', dpi=300)
+
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))
 
     return
 
 
-def plot_degree(G):
+def plot_graph(G):
     # Code based on https://networkx.org/documentation/stable/auto_examples/drawing/plot_degree.html
     degree_sequence = sorted((d for n, d in G.degree()), reverse=True)
 
