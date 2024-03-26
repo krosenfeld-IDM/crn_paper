@@ -8,24 +8,13 @@ import scipy.stats as sps
 
 __all__ = ['PPH']
 
-def p_infant_death(self, sim, uids):
-    p_death = (1 - 0.94) * np.ones(len(uids)) # Base rate if infant mortality
-
-    mother_died = self.mother_died[uids]
-    p_death[mother_died] = 1 - 0.52 # Elevated rate if mother died
-
-    return p_death
-
 class PPH(ss.Pregnancy):
     # Postpartum hemorrhage (PPH)
 
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
         super().__init__(pars, **kwargs)
 
-        self.add_states(
-            ss.State('mother_died', bool, False),  # Indicator (by child uid) of maternal mortality
-        )
-        self.p_infant_death = sps.bernoulli(p=p_infant_death) # Probability calculated below
+        self.p_infant_death = sps.bernoulli(p=0.5) # 50% chance of infant death if mother dies
         self.n_infant_deaths = 0 # Number of infant deaths on this timestep
         return
 
@@ -61,12 +50,13 @@ class PPH(ss.Pregnancy):
             maternal_deaths = ss.true(self.ti_dead <= sim.ti)
             self.results['maternal_deaths'][sim.ti] = len(maternal_deaths)
             if np.any(maternal_deaths):
-                infant_uids_mm = mn.loc[mn['p1'].isin(maternal_deaths)]['p2'].values # Find infants, not using find_contacts because that is bidirectional
-                self.mother_died[infant_uids_mm] = True
+                # Find infants, not using find_contacts because that is bidirectional
+                # And only keep edges where dur >= 0, others are inactive
+                infant_uids_mm = mn.loc[(mn['p1'].isin(maternal_deaths)) & (mn['dur'] >= 0)]['p2'].values
 
-            infant_deaths = self.p_infant_death.filter(infant_uids)
-            self.results['infant_deaths'][sim.ti] = len(infant_deaths)
-            if np.any(infant_deaths):
-                sim.people.request_death(infant_deaths)
+                infant_deaths = self.p_infant_death.filter(infant_uids_mm)
+                self.results['infant_deaths'][sim.ti] = len(infant_deaths)
+                if np.any(infant_deaths):
+                    sim.people.request_death(infant_deaths)
 
         return

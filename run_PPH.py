@@ -16,8 +16,8 @@ from PPH_demographics import PPH
 
 PPH_INTV_EFFICACY = 0.6 # 60% reduction in maternal mortality due to PPH with intervention
 
-default_n_agents = 1_000
-default_n_rand_seeds = 250
+default_n_agents = 10_000
+default_n_rand_seeds = 25
 
 do_plot_longitudinal = True
 do_plot_timeseries = True
@@ -48,7 +48,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, pph_intv
     preg_pars = {
         #'fertility_rate': 50, # per 1,000 live women. TODO: ASFR
         'fertility_rate': asfr_data, # per 1,000 live women.
-        'maternal_death_rate': 1/1000, # live births, actually a probability
+        'maternal_death_rate': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
     }
     if pph_intv:
         preg_pars['maternal_death_rate'] *= 1-PPH_INTV_EFFICACY # Reduction in maternal mortality due to PPH with intervention
