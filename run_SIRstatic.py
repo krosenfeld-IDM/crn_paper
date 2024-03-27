@@ -13,6 +13,8 @@ import seaborn as sns
 import numpy as np
 import networkx as nx
 
+from plotting import plot_scenarios, plot_graph
+
 sc.options(interactive=False) # Assume not running interactively
 
 # Suppress warning from seaborn
@@ -22,22 +24,32 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 rngs = ['centralized', 'multi'] # 'single', 
 
-n = 5_000 # Agents
-n_rand_seeds = 1_000
+n = 1_000 # Agents
+n_rand_seeds = 10
 intv_cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the baseline
 
 figdir = os.path.join(os.getcwd(), 'figs', 'SIR')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
-def run_sim(n, idx, intv_cov, rand_seed, rng):
-
-    print(f'Starting sim {idx} with rand_seed={rand_seed} and intv_cov={intv_cov}, rng={rng}')
+def run_sim(n, idx, intv_cov, rand_seed, rng, network=None):
 
     ppl = ss.People(n)
     # watts_strogatz_graph, erdos_renyi_graph, grid_2d_graph, configuration_model, line_graph, barabasi_albert_graph, scale_free_graph, complete_graph, maybe a tree
     #G = nx.gnp_random_graph(n, p=3/n, seed=rand_seed) #G=nx.erdos_renyi_graph(n, p=3/n, seed=rand_seed)
-    G=nx.barabasi_albert_graph(n=n, m=1, seed=rand_seed)
-    #G=nx.complete_graph(n)
+    # G=nx.complete_graph(n)
+    if network is None:
+        G=nx.barabasi_albert_graph(n=n, m=1, seed=rand_seed)
+        G.name = 'Barabasi-Albert'
+    elif callable(network):
+        G = network(n, rand_seed) # Call with n and random seed if callable
+    elif isinstance(network, nx.Graph):
+        G = network.copy()
+    else:
+        print('Check the network parameter')
+
+    lbl = f'Sim {idx}: agents={n}, intv_cov={intv_cov}, seed={rand_seed}, net={G.name}, rng={rng}'
+    print('Starting', lbl)
+
     networks = ss.StaticNet(G)
 
     sir_pars = {
@@ -73,8 +85,7 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
         )
         pars['interventions'] = [ MyIntervention ]
 
-    sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars,
-            label=f'Sim with {n} agents and intv_cov={intv_cov}')
+    sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars, label=lbl)
     sim.initialize()
 
     # Infect agent zero to start the simulation
@@ -91,19 +102,20 @@ def run_sim(n, idx, intv_cov, rand_seed, rng):
     })
     df['intv_cov'] = intv_cov
     df['rand_seed'] = rand_seed
+    df['network'] = G.name
     df['rng'] = rng
 
-    if idx == 0:
+    if rand_seed == 0: # Will repead for coverage sweep, but that's okay!
         fig = plot_graph(G)
-        fig.savefig(os.path.join(figdir, 'graph.png'), bbox_inches='tight', dpi=300)
+        fig.savefig(os.path.join(figdir, f'graph_{n}_{G.name}.png'), bbox_inches='tight', dpi=300)
         plt.close(fig)
         print(f'Mean duration of infection is {sir_pars["dur_inf"].mean() * 365} days')
 
-    print(f'Finishing sim {idx} with rand_seed={rand_seed} and intv_cov={intv_cov}, rng={rng}')
+    print('Finishing', lbl)
 
     return df
 
-def run_scenarios():
+def sweep_cov():
     results = []
     times = {}
     for rng in rngs:
@@ -119,104 +131,36 @@ def run_scenarios():
     print('Timings:', times)
 
     df = pd.concat(results)
-    df.to_csv(os.path.join(figdir, 'result.csv'))
+    df.to_csv(os.path.join(figdir, 'sweep_cov.csv'))
     return df
 
-def plot_scenarios(df):
-    d = pd.melt(df, id_vars=['year', 'rand_seed', 'intv_cov', 'rng'], var_name='channel', value_name='Value')
-    d['baseline'] = d['intv_cov']==0
-    bl = d.loc[d['baseline']]
-    scn = d.loc[~d['baseline']]
-    bl = bl.set_index(['year', 'channel', 'rand_seed', 'intv_cov', 'rng'])[['Value']].reset_index('intv_cov')
-    scn = scn.set_index(['year', 'channel', 'rand_seed', 'intv_cov', 'rng'])[['Value']].reset_index('intv_cov')
-    mrg = scn.merge(bl, on=['year', 'channel', 'rand_seed', 'rng'], suffixes=('', '_ref'))
-    mrg['Value - Reference'] = mrg['Value'] - mrg['Value_ref']
-    mrg = mrg.sort_index()
+def sweep_network():
+    results = []
+    times = {}
 
-    cor = mrg.groupby(['year', 'channel', 'rng', 'intv_cov'])[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
-    cor.name = 'Pearson'
+    for rng in rngs:
+        ss.options(rng=rng)
+        cfgs = []
+        for rs in range(n_rand_seeds):
+            graphs = {
+                'Barabasi-Albert':  nx.barabasi_albert_graph(n=n, m=1, seed=rs),
+                'Erdos-Renyi':      nx.gnp_random_graph(n=n, p=3/n, seed=rs), #G=nx.erdos_renyi_graph(n, p=3/n, seed=rand_seed)
+                'Watts-Strogatz':   nx.watts_strogatz_graph(n=n, k=3, p=0.25, seed=rs), # Small world
+                'Complete':         nx.complete_graph(n=n),
+            }
 
-    fkw = {'sharey': False, 'sharex': 'col', 'margin_titles': True}
+            for name, G in graphs.items():
+                G.name = name
+                cfgs.append({'network':G, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
+        T = sc.tic()
+        results += sc.parallelize(run_sim, kwargs={'n': n, 'intv_cov': 0}, iterkwargs=cfgs, die=True, serial=False)
+        times[f'rng={rng}'] = sc.toc(T, output=True)
 
-    ## TIMESERIES
-    g = sns.relplot(kind='line', data=d, x='year', y='Value', hue='intv_cov', col='channel', row='rng', row_order=rngs,
-        height=5, aspect=1.2, palette='Set1', errorbar='sd', lw=2, facet_kws=fkw)
-    g.set_titles(col_template='{col_name}', row_template='rng: {row_name}')
-    g.set_xlabels('Year')
-    g.figure.savefig(os.path.join(figdir, 'timeseries.png'), bbox_inches='tight', dpi=300)
+    print('Timings:', times)
 
-    ## DIFF TIMESERIES
-    for ms, mrg_by_ms in mrg.groupby('rng'):
-        g = sns.relplot(kind='line', data=mrg_by_ms, x='year', y='Value - Reference', hue='intv_cov', col='channel',
-                row='intv_cov', height=3, aspect=1.0, palette='Set1', estimator=None, units='rand_seed', lw=0.5, facet_kws=fkw) #errorbar='sd', lw=2, 
-        g.set_titles(col_template='{col_name}', row_template='Coverage: {row_name}')
-        #g.figure.suptitle('MultiRNG' if ms else 'SingleRNG')
-        g.figure.subplots_adjust(top=0.88)
-        g.set_xlabels('Year')
-        g.figure.savefig(os.path.join(figdir, f'diff_{ms}.png'), bbox_inches='tight', dpi=300)
-
-    ## CORRELATION OVER TIME
-    g = sns.relplot(kind='line', data=cor.to_frame(), x='year', y='Pearson', hue='rng', hue_order=rngs, col='channel',
-            row='intv_cov', height=3, aspect=1.0, palette='Set1', errorbar='sd', lw=1, facet_kws=fkw)
-    g.set_titles(col_template='{col_name}', row_template='Coverage: {row_name}')
-    #g.figure.suptitle('MultiRNG' if ms else 'SingleRNG')
-    g.figure.subplots_adjust(top=0.88)
-    g.set_xlabels('Year')
-    g.figure.savefig(os.path.join(figdir, 'cor.png'), bbox_inches='tight', dpi=300)
-
-    ## FINAL TIME
-    tf = df['year'].max()
-    mtf = mrg.loc[tf]
-    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='intv_cov', x='Value - Reference',
-            col='channel', row='rng', row_order=rngs, height=5, aspect=1.2, facet_kws=fkw, palette='Set1')
-    g.set_titles(col_template='{col_name}', row_template='rng: {row_name}')
-    g.set_xlabels(f'Value - Reference at year {tf}')
-    g.figure.savefig(os.path.join(figdir, 'final.png'), bbox_inches='tight', dpi=300)
-
-    ## COR SCATTER FINAL TIME
-    ctf = mtf.reset_index('rand_seed').set_index('intv_cov', append=True).sort_index()
-    g = sns.relplot(data=ctf, kind='scatter', hue='rng', hue_order=rngs, style='rng', style_order=rngs, x='Value_ref', y='Value',
-            col='channel', row='intv_cov', height=5, aspect=1.2, facet_kws=fkw, palette='Set1')
-    g.set_titles(col_template='{col_name}', row_template='Coverage: {row_name}')
-    g.set_xlabels(f'Reference at year {tf}')
-    g.set_ylabels(f'Value at year {tf}')
-    g.figure.savefig(os.path.join(figdir, 'cor_final.png'), bbox_inches='tight', dpi=300)
-
-    print('Figures saved to:', os.path.join(os.getcwd(), figdir))
-
-    return
-
-
-def plot_graph(G):
-    # Code based on https://networkx.org/documentation/stable/auto_examples/drawing/plot_degree.html
-    degree_sequence = sorted((d for n, d in G.degree()), reverse=True)
-
-    fig = plt.figure("Degree of a random graph", figsize=(8, 8))
-    # Create a gridspec for adding subplots of different sizes
-    axgrid = fig.add_gridspec(5, 4)
-
-    ax0 = fig.add_subplot(axgrid[0:3, :])
-    pos = nx.spring_layout(G, seed=10396954)
-    nx.draw_networkx_nodes(G, pos, ax=ax0, node_size=20)
-    nx.draw_networkx_edges(G, pos, ax=ax0, alpha=0.4)
-    ax0.set_title("Graph")
-    ax0.set_axis_off()
-
-    ax1 = fig.add_subplot(axgrid[3:, :2])
-    ax1.plot(degree_sequence, "b-", marker="o")
-    ax1.set_title("Degree Rank Plot")
-    ax1.set_ylabel("Degree")
-    ax1.set_xlabel("Rank")
-
-    ax2 = fig.add_subplot(axgrid[3:, 2:])
-    ax2.bar(*np.unique(degree_sequence, return_counts=True))
-    ax2.set_title("Degree histogram")
-    ax2.set_xlabel("Degree")
-    ax2.set_ylabel("# of Nodes")
-
-    fig.tight_layout()
-    return fig
-
+    df = pd.concat(results)
+    df.to_csv(os.path.join(figdir, 'sweep_network.csv'))
+    return df
 
 
 if __name__ == '__main__':
@@ -229,11 +173,13 @@ if __name__ == '__main__':
     if args.plot:
         print('Reading CSV file', args.plot)
         df = pd.read_csv(args.plot, index_col=0)
+        raise Exception('TODO')
     else:
         print('Running scenarios')
-        df = run_scenarios()
+        #dfc = sweep_cov()
+        dfn = sweep_network()
 
-    plot_scenarios(df)
+    #plot_scenarios(df, figdir, sweep_var='network', reference_val=???)
     
     #df = run_sim(n, idx=0, intv_cov=0, rand_seed=0, rng='multi')
     #print(df)
