@@ -9,7 +9,7 @@ import scipy.stats as sps
 __all__ = ['PPH']
 
 class PPH(ss.Pregnancy):
-    # Postpartum hemorrhage (PPH)
+    # Postpartum hemorrhage (PPH) --> maternal and infant death
 
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
         super().__init__(pars, **kwargs)
