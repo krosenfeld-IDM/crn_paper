@@ -2,6 +2,8 @@ import os
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
 
 def plot_scenarios(df, figdir, channels=None):
     sns.set(font_scale=1.4, style='whitegrid')
@@ -10,21 +12,28 @@ def plot_scenarios(df, figdir, channels=None):
     df.replace({'rng': {'centralized':'Centralized', 'multi': 'CRN'}}, inplace=True)
     rngs = ['Centralized', 'CRN']
 
-    df.replace({'cov': {0.0: 'Reference', 0.1:'10%', 0.9: '90%'}}, inplace=True)
-    cov_ord = ['Reference', '10%', '90%']
+    covs = df['cov'].unique()
+    covs.sort()
+    rep = {c: f'{c:.0%}' if c > 0 else 'Reference' for c in covs}
+    df.replace({'cov': rep}, inplace=True)
+    cov_ord = [rep[c] for c in covs]
+    first = cov_ord.pop(0)
+    cov_ord.append(first)
+    df['cov'] = pd.Categorical(df['cov'], categories=cov_ord) # Agh!
 
     df.rename(columns={'cov': 'Coverage'}, inplace=True)
     cov = 'Coverage'
 
-    d = pd.melt(df, id_vars=['year', 'rand_seed', cov, 'rng'], var_name='channel', value_name='Value')
+    d = pd.melt(df, id_vars=['year', 'rand_seed', cov, 'rng', 'network'], var_name='channel', value_name='Value')
     d['baseline'] = d[cov]=='Reference'
     bl = d.loc[d['baseline']]
     scn = d.loc[~d['baseline']]
-    bl = bl.set_index(['year', 'channel', 'rand_seed', cov, 'rng'])[['Value']].reset_index(cov)
-    scn = scn.set_index(['year', 'channel', 'rand_seed', cov, 'rng'])[['Value']].reset_index(cov)
-    mrg = scn.merge(bl, on=['year', 'channel', 'rand_seed', 'rng'], suffixes=('', '_ref'))
+    bl = bl.set_index(['year', 'channel', 'rand_seed', cov, 'rng', 'network'])[['Value']].reset_index(cov)
+    scn = scn.set_index(['year', 'channel', 'rand_seed', cov, 'rng', 'network'])[['Value']].reset_index(cov)
+    mrg = scn.merge(bl, on=['year', 'channel', 'rand_seed', 'rng', 'network'], suffixes=('', '_ref'))
     mrg['Value - Reference'] = mrg['Value'] - mrg['Value_ref']
     mrg = mrg.sort_index()
+    mrg['Coverage'] = pd.Categorical(mrg['Coverage'], categories=cov_ord[:-1]) # Agh^2!
 
     cor = mrg.groupby(['year', 'channel', 'rng', cov])[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
     cor.name = 'Pearson'
@@ -35,27 +44,28 @@ def plot_scenarios(df, figdir, channels=None):
 
     # Make a color palette for timeseries
     Set1_mod = sns.color_palette('Set1') 
+    #Set1_mod = [Set1_mod[2]] + [Set1_mod[0]] + [Set1_mod[1]]
     #print(Set1_mod)
-    #first = Set1_mod.pop(0) # Move the 1st color to len(cov) for consistency
-    #n = len(covs)-1
-    #Set1_mod = Set1_mod[:n] + [first]
+    first = Set1_mod.pop(0) # Move the 1st color to len(cov) for consistency
+    n = len(covs)-1
+    Set1_mod = Set1_mod[:n] + [first]
     #print(Set1_mod)
-    Set1_mod = [Set1_mod[2]] + [Set1_mod[0]] + [Set1_mod[1]]
 
     ## TIMESERIES
     g = sns.relplot(kind='line', data=d, x='year', y='Value', hue=cov, hue_order=cov_ord, col='channel', col_order=channels, row='rng', row_order=rngs,
-        palette=Set1_mod, errorbar='sd', lw=2, facet_kws=fkw, **kw)
+        palette='Set1', errorbar='sd', lw=2, facet_kws=fkw, **kw)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels('Year')
     g.figure.savefig(os.path.join(figdir, 'timeseries.png'), bbox_inches='tight', dpi=300)
 
-    ## TIMESERIES Maternal Deaths
-    ch_ord = ['Maternal Deaths']
-    g = sns.relplot(kind='line', data=d, x='year', y='Value', hue=cov, hue_order=cov_ord, row='channel', row_order=ch_ord, col='rng', col_order=rngs,
-        palette=Set1_mod, errorbar='sd', lw=2, facet_kws=fkw, **kw)
-    g.set_titles(col_template='{col_name}', row_template='{row_name}')
-    g.set_xlabels('Year')
-    g.figure.savefig(os.path.join(figdir, 'timeseries_matdth.png'), bbox_inches='tight', dpi=300)
+    ## TIMESERIES: specific channels
+    for ch in ['Maternal Deaths', 'Infected']:
+        if ch in d['channel'].unique():
+            g = sns.relplot(kind='line', data=d, x='year', y='Value', hue=cov, hue_order=cov_ord, row='channel', row_order=[ch], col='rng', col_order=rngs,
+                palette=Set1_mod, errorbar='sd', lw=2, facet_kws=fkw, **kw)
+            g.set_titles(col_template='{col_name}', row_template='{row_name}')
+            g.set_xlabels('Year')
+            g.figure.savefig(os.path.join(figdir, f'timeseries_{ch.replace(" ", "")}.png'), bbox_inches='tight', dpi=300)
 
     ## DIFF TIMESERIES
     for ms, mrg_by_ms in mrg.groupby('rng'):
