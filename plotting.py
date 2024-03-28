@@ -25,8 +25,9 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     df.replace({'rng': {'centralized':'Centralized', 'multi': 'CRN'}}, inplace=True)
     rngs = ['Centralized', 'CRN']
 
-    assert df['year'].iloc[0] == 2020
-    df['date'] = pd.to_datetime(365 * (df['year']-2020), unit='D', origin=dt.datetime(year=2020, month=1, day=1)) #pd.to_datetime(df['year'], format='%f', unit='Y')
+    first_year = int(df['year'].iloc[0])
+    assert df['year'].iloc[0] == first_year
+    df['date'] = pd.to_datetime(365 * (df['year']-first_year), unit='D', origin=dt.datetime(year=first_year, month=1, day=1)) #pd.to_datetime(df['year'], format='%f', unit='Y')
 
     covs = df['cov'].unique()
     covs.sort()

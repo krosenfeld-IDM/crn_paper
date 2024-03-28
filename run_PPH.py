@@ -23,7 +23,7 @@ covs = [0.1, 0.9] + [0]
 
 PPH_INTV_EFFICACY = 0.6 # 60% reduction in maternal mortality due to PPH with intervention
 
-debug = False
+debug = True
 default_n_agents = [100_000, 1_000][debug]
 default_n_rand_seeds = [250, 25][debug]
 
@@ -124,6 +124,9 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     df['cov'] = cov
     df['rand_seed'] = rand_seed
     df['rng'] = rng
+    df['network'] = 'None'
+    df['eff'] = PPH_INTV_EFFICACY
+    df['n_agents'] = n_agents
 
     print(f'Finishing sim {idx} with rand_seed={rand_seed} and cov={cov}, rng={rng}')
 
@@ -168,7 +171,7 @@ if __name__ == '__main__':
 
     print(df)
 
-    plot_scenarios(df, figdir, channels)
+    plot_scenarios(df, figdir, channels, var1='cov', var2='channel')
     #plt.show()
 
     print('Done')
