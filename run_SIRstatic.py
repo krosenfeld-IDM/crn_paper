@@ -9,7 +9,6 @@ import scipy.stats as sps
 import matplotlib.pyplot as plt
 import sciris as sc
 import pandas as pd
-import seaborn as sns
 import numpy as np
 import networkx as nx
 
@@ -30,7 +29,7 @@ default_n_rand_seeds = [250, 25][debug]
 
 basedir = os.path.join(os.getcwd(), 'figs')
 
-def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_initial_prevalence=False):
+def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_initial_prevalence=False, pars=None, sir_pars=None):
 
     ppl = ss.People(n_agents)
     # watts_strogatz_graph, erdos_renyi_graph, grid_2d_graph, configuration_model, line_graph, barabasi_albert_graph, scale_free_graph, complete_graph, maybe a tree
@@ -49,17 +48,17 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
     networks = ss.StaticNet(G)
 
-    sir_pars = {
+    default_sir_pars = {
         'beta': 75,
         'dur_inf': sps.weibull_min(c=1, scale=30/365), # When c=1, it's an exponential
         #'dur_inf': sps.weibull_min(c=3, scale=33.5/365), # Can check sir_pars['dur_inf'].mean()
         'init_prev': 0,  # Will seed manually
         'p_death': 0, # No death
     }
-
+    sir_pars = ss.omerge(default_sir_pars, sir_pars)
     sir = ss.SIR(sir_pars)
 
-    pars = {
+    default_pars = {
         'start': 2020,
         'end': 2020.5,
         'dt': 1/365,
@@ -68,6 +67,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         'remove_dead': True,
         'slot_scale': 10 # Increase slot scale to reduce repeated slots
     }
+    pars = ss.omerge(default_pars, pars)
 
     if cov > 0:
         # Create the product - a vaccine with specified efficacy
@@ -122,8 +122,9 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
     return df
 
+
 def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
-    figdir = os.path.join(basedir, 'SIR_sweep_cov')
+    figdir = os.path.join(basedir, 'SIR_coverage')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     #cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the reference level
@@ -148,51 +149,83 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     print('Timings:', times)
 
     df = pd.concat(results)
-    df.to_csv(os.path.join(figdir, 'sweep_cov.csv'))
+    df.to_csv(os.path.join(figdir, 'results.csv'))
 
     return df
 
-'''
+
+def grid_2d(m, n):
+    from networkx.utils import pairwise
+    G = nx.empty_graph(0)
+    rows = np.arange(m)
+    cols = np.arange(n)
+    G.add_nodes_from(i*m+j for i in rows for j in cols)
+    G.add_edges_from((i*m+j, pi*m+j) for pi, i in pairwise(rows) for j in cols)
+    G.add_edges_from((i*m+j, i*m+pj) for i in rows for pj, j in pairwise(cols))
+    return G
+
+
 def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
+    figdir = os.path.join(basedir, 'SIR_network')
+    sc.path(figdir).mkdir(parents=True, exist_ok=True)
+
+    print('Overriding n_agents to 1,000')
+    n_agents = 1_000
+
+    cov_levels = [0, 0.05, 0.80] # Must include 0 as that's the reference level
+    efficacy = 0.5 # 0.8, 0.3
+
     results = []
     times = {}
+
+    s = int(np.floor(np.sqrt(n_agents)))
+    n_agents = s * s
 
     for rng in rngs:
         ss.options(rng=rng)
         cfgs = []
         for rs in range(n_seeds):
             graphs = {
-                'Barabasi-Albert':  nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs),
-                'Erdos-Renyi':      nx.gnp_random_graph(n=n_agents, p=3/n_agents, seed=rs), #G=nx.erdos_renyi_graph(n, p=3/n, seed=rand_seed)
-                'Watts-Strogatz':   nx.watts_strogatz_graph(n=n_agents, k=3, p=0.25, seed=rs), # Small world
-                'Complete':         nx.complete_graph(n=n_agents),
+                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 80}),
+                'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 13}),
+                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 18}),
+                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 32})
+                #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
-
-            for name, G in graphs.items():
+            for name, (G,sir_pars) in graphs.items():
                 G.name = name
-                cfgs.append({'network':G, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
+
+                if rng == rngs[0] and rs == 0 and n_agents <= 1_000:
+                    fig = plot_graph(G)
+                    fig.savefig( os.path.join(figdir, f'Graph {name.replace("/", "_")}.png') )
+                    plt.close(fig)
+
+                for cov in cov_levels:
+                    cfgs.append({'network':G, 'sir_pars': sir_pars, 'cov':cov, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
+
         T = sc.tic()
-        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'cov': 0}, iterkwargs=cfgs, die=True, serial=False)
+        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'eff': efficacy, 'fixed_initial_prevalence': False, 'pars': {'end':2022}}, iterkwargs=cfgs, die=True, serial=False)
         times[f'rng={rng}'] = sc.toc(T, output=True)
 
     print('Timings:', times)
 
     df = pd.concat(results)
-    df.to_csv(os.path.join(figdir, 'sweep_network.csv'))
+    df.to_csv(os.path.join(figdir, 'results.csv'))
     return df
-'''
+
 
 def sweep_n(n_seeds=default_n_rand_seeds):
-    figdir = os.path.join(basedir, 'SIR_sweep_n')
+    figdir = os.path.join(basedir, 'SIR_n')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     n_agents_levels = [10, 100, 1000]
     if not debug:
         n_agents_levels += [10_000]#, 100_000]
-    #cov_levels = [0, 0.15] # Must include 0 as that's the reference level
-    #efficacy = 0.3
-    cov_levels = [0, 0.05, 0.90] # Must include 0 as that's the reference level
-    efficacy = 0.8
+
+    cov_levels = [0, 0.15] # Must include 0 as that's the reference level
+    efficacy = 0.3
+    #cov_levels = [0, 0.05, 0.90] # Must include 0 as that's the reference level
+    #efficacy = 0.8
 
     results = []
     times = {}
@@ -220,7 +253,7 @@ def sweep_n(n_seeds=default_n_rand_seeds):
     for col in ['Susceptible', 'Infected', 'Recovered']:
         df[col] /= df['n_agents']
 
-    df.to_csv(os.path.join(figdir, 'sweep_n.csv'))
+    df.to_csv(os.path.join(figdir, 'results.csv'))
 
     return df
 
@@ -234,20 +267,32 @@ if __name__ == '__main__':
     parser.add_argument('-s', help='Number of seeds', type=int, default=default_n_rand_seeds)
     args = parser.parse_args()
 
+    results = {}
     if args.plot:
-        raise Exception('TODO') # Get base dir, then read each CSV
-        print('Reading CSV file', args.plot)
-        df = pd.read_csv(args.plot, index_col=0)
-        #figdir = os.path.dirname(args.plot)
+        for d in ['SIR_network']:#, 'SIR_coverage', 'SIR_n']:
+            fn = os.path.join(args.plot, d, 'results.csv')
+            try:
+                print('Reading CSV file', fn)
+                results[d] = pd.read_csv(fn, index_col=0)
+            except:
+                print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        dfc = sweep_cov(n_agents=args.n, n_seeds=args.s)
-        dfn = sweep_n(n_seeds=args.s)
+        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
+        #results['SIR_n'] = sweep_n(n_seeds=args.s)
 
-    figdir = os.path.join(basedir, 'SIR_sweep_cov')
-    plot_scenarios(dfc, figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
+    if 'SIR_network' in results:
+        figdir = os.path.join(basedir, 'SIR_network')
+        plot_scenarios(results['SIR_network'], figdir, channels=['Recovered'], var1='network', var2='cov')
 
-    figdir = os.path.join(basedir, 'SIR_sweep_n')
-    plot_scenarios(dfn, figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
+
+    if 'SIR_coverage' in results:
+        figdir = os.path.join(basedir, 'SIR_coverage')
+        plot_scenarios(results['SIR_coverage'], figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
+
+    if 'SIR_n' in results:
+        figdir = os.path.join(basedir, 'SIR_n')
+        plot_scenarios(results['SIR_n'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
     
     print('Done')
