@@ -235,21 +235,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.plot:
+        raise Exception('TODO') # Get base dir, then read each CSV
         print('Reading CSV file', args.plot)
         df = pd.read_csv(args.plot, index_col=0)
         #figdir = os.path.dirname(args.plot)
     else:
         print('Running scenarios')
-        df = sweep_cov(n_agents=args.n, n_seeds=args.s)
-        #df = sweep_n(n_seeds=args.s)
+        dfc = sweep_cov(n_agents=args.n, n_seeds=args.s)
+        dfn = sweep_n(n_seeds=args.s)
 
     figdir = os.path.join(basedir, 'SIR_sweep_cov')
-    plot_scenarios(df, figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
+    plot_scenarios(dfc, figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
 
-    #figdir = os.path.join(basedir, 'SIR_sweep_n')
-    #plot_scenarios(df, figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
+    figdir = os.path.join(basedir, 'SIR_sweep_n')
+    plot_scenarios(dfn, figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
     
-    #df = run_sim(n, idx=0, cov=0, rand_seed=0, rng='multi')
-    #print(df)
-
     print('Done')
