@@ -21,7 +21,8 @@ import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-rngs = ['centralized', 'multi'] # 'single', 
+#rngs = ['centralized', 'multi'] # 'single', 
+rngs = ['multi'] # 'single', 
 
 debug = False
 default_n_agents = [10_000, 1_000][debug]
@@ -96,6 +97,8 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
     sim.diseases.sir.set_prognoses(sim, uids=uids, source_uids=None)
 
     sim.run()
+
+    sim.diseases['sir'].log.line_list.to_csv( os.path.join('figs', f'll_{cov}.csv') )
 
     df = pd.DataFrame( {
         'year': sim.yearvec,
@@ -172,7 +175,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     print('Overriding n_agents to 1,000')
     n_agents = 1_000
 
-    cov_levels = [0, 0.05, 0.80] # Must include 0 as that's the reference level
+    cov_levels = [0, 0.05]#, 0.80] # Must include 0 as that's the reference level
     efficacy = 0.5 # 0.8, 0.3
 
     results = []
@@ -184,11 +187,11 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     for rng in rngs:
         ss.options(rng=rng)
         cfgs = []
-        for rs in range(n_seeds):
+        for rs in [94]:#range(n_seeds):
             graphs = {
-                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 80}),
-                'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 13}),
-                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 18}),
+                ##'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 80}),
+                ##'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 13}),
+                ##'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 18}),
                 'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 32})
                 #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
