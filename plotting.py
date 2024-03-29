@@ -86,11 +86,14 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     
     #%% TIMESERIES
     g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row=var2, col='rng', col_order=rngs,
-        palette='Set1', errorbar='sd', lw=2, facet_kws=fkw, **kw)
+        palette='Set1', facet_kws=fkw, **kw,
+        errorbar=('pi', 25), estimator=np.median, lw=2)
+        #units='rand_seed', estimator=None, lw=0.1)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels('Date')
     fix_dates(g)
     g.figure.savefig(os.path.join(figdir, 'timeseries.png'), bbox_inches='tight', dpi=300)
+    plt.close(g.figure)
 
 
     #%% TIMESERIES: specific channels
@@ -102,6 +105,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             g.set_xlabels('Date')
             fix_dates(g)
             g.figure.savefig(os.path.join(figdir, f'timeseries_{ch.replace(" ", "")}.png'), bbox_inches='tight', dpi=300)
+            plt.close(g.figure)
 
 
     #%% DIFF TIMESERIES
@@ -114,6 +118,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.set_xlabels('Date')
         fix_dates(g)
         g.figure.savefig(os.path.join(figdir, f'diff_{ms}.png'), bbox_inches='tight', dpi=300)
+        plt.close(g.figure)
 
 
     #%% SLICE AT SPECIFIC TIME
@@ -125,14 +130,28 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         sidx = sc.findnearest(years, slice_year)
         slice_year = dates[sidx]
 
-    slice_str = slice_year.strftime('%b %d, %Y')
+    slice_str = slice_year.strftime('%b %-d, %Y')
+
+    facet_kws = fkw.copy()
+    facet_kws['sharey'] = 'row'
+    facet_kws['sharex'] = 'row'
 
     mtf = mrg.loc[slice_year]
     g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue=var1, hue_order=var1_ord, x='Value - Reference',
-            row=var2, col='rng', col_order=rngs, facet_kws=fkw, palette='Set1', **kw)
+            row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='Set1', **kw)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels(f'Value - Reference on {slice_str}')
     g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
+    plt.close(g.figure)
+
+    facet_kws['sharey'] = False
+    facet_kws['sharex'] = 'col'
+    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='rng', hue_order=rngs, x='Value - Reference',
+            col=var2, row=var1, facet_kws=facet_kws, palette='Set1', **kw)
+    g.set_titles(col_template='{col_name}', row_template='{row_name}')
+    g.set_xlabels(f'Value - Reference on {slice_str}')
+    g.figure.savefig(os.path.join(figdir, 'slice2.png'), bbox_inches='tight', dpi=300)
+    plt.close(g.figure)
 
 
     #%% COR SCATTER AT SLICE TIME
@@ -156,6 +175,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.set_xlabels(f'Reference on {slice_str}')
     g.set_ylabels(f'Value on {slice_str}')
     g.figure.savefig(os.path.join(figdir, 'cor_slice.png'), bbox_inches='tight', dpi=300)
+    plt.close(g.figure)
 
     # Share y from here on
     fkw['sharey'] = 'row'
@@ -163,12 +183,13 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
 
     #%% DIFF TIMESERIES ALL IN ONE
     g = sns.relplot(kind='line', data=mrg, x='date', y='Value - Reference', hue=var1, hue_order=var1_ord, row=var2, #row_order=channels,
-            col='rng', col_order=rngs, palette='Set1', estimator=None, units='rand_seed', lw=0.5, facet_kws=fkw, **kw)
+            col='rng', col_order=rngs, palette='Set1', estimator=None, units='rand_seed', lw=0.1, facet_kws=fkw, **kw)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.figure.subplots_adjust(top=0.88)
     g.set_xlabels('Date')
     fix_dates(g)
     g.figure.savefig(os.path.join(figdir, f'diff.png'), bbox_inches='tight', dpi=300)
+    plt.close(g.figure)
 
 
     #%% CORRELATION OVER TIME
@@ -182,6 +203,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.set_xlabels('Date')
         fix_dates(g)
         g.figure.savefig(os.path.join(figdir, 'cor.png'), bbox_inches='tight', dpi=300)
+        plt.close(g.figure)
     except Exception as e:
         print('CORRELATION OVER TIME did not work')
         print(e)

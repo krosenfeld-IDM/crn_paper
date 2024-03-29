@@ -21,8 +21,7 @@ import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-#rngs = ['centralized', 'multi'] # 'single', 
-rngs = ['multi'] # 'single', 
+rngs = ['centralized', 'multi'] # 'single', 
 
 debug = False
 default_n_agents = [10_000, 1_000][debug]
@@ -93,7 +92,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
     if fixed_initial_prevalence:
         uids = np.arange(n_agents//10)
     else:
-        uids = np.array([0])
+        uids = np.array([n_agents//2])
     sim.diseases.sir.set_prognoses(sim, uids=uids, source_uids=None)
 
     sim.run()
@@ -175,7 +174,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     print('Overriding n_agents to 1,000')
     n_agents = 1_000
 
-    cov_levels = [0, 0.05]#, 0.80] # Must include 0 as that's the reference level
+    cov_levels = [0, 0.05, 0.80] # Must include 0 as that's the reference level
     efficacy = 0.5 # 0.8, 0.3
 
     results = []
@@ -187,12 +186,12 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     for rng in rngs:
         ss.options(rng=rng)
         cfgs = []
-        for rs in [94]:#range(n_seeds):
+        for rs in range(n_seeds):
             graphs = {
-                ##'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 80}),
-                ##'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 13}),
-                ##'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 18}),
-                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 32})
+                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 95}),
+                'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 10}),
+                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 13}),
+                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 18})
                 #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
             for name, (G,sir_pars) in graphs.items():
@@ -272,7 +271,7 @@ if __name__ == '__main__':
 
     results = {}
     if args.plot:
-        for d in ['SIR_network']:#, 'SIR_coverage', 'SIR_n']:
+        for d in ['SIR_network', 'SIR_coverage', 'SIR_n']:
             fn = os.path.join(args.plot, d, 'results.csv')
             try:
                 print('Reading CSV file', fn)
@@ -288,7 +287,6 @@ if __name__ == '__main__':
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network')
         plot_scenarios(results['SIR_network'], figdir, channels=['Recovered'], var1='network', var2='cov')
-
 
     if 'SIR_coverage' in results:
         figdir = os.path.join(basedir, 'SIR_coverage')
