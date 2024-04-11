@@ -50,7 +50,8 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
     default_sir_pars = {
         'beta': 75,
-        'dur_inf': sps.weibull_min(c=1, scale=30/365), # When c=1, it's an exponential
+        #'dur_inf': sps.weibull_min(c=1, scale=30/365), # When c=1, it's an exponential
+        'dur_inf': ss.expon(scale=30/365),
         #'dur_inf': sps.weibull_min(c=3, scale=33.5/365), # Can check sir_pars['dur_inf'].mean()
         'init_prev': 0,  # Will seed manually
         'p_death': 0, # No death
@@ -85,6 +86,11 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         pars['interventions'] = [ MyIntervention ]
 
     sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars, label=lbl)
+
+    if rng == 'centralized':
+        for dist in sim.dists.dists.values():
+            dist.rng = np.random.mtrand._rand
+
     sim.initialize()
 
     # Infect agent zero to start the simulation
@@ -135,7 +141,7 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     results = []
     times = {}
     for rng in rngs:
-        ss.options(rng=rng)
+        ss.options(_centralized = rng=='centralized')
         cfgs = []
         for rs in range(n_seeds):
             G = None
@@ -184,7 +190,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     n_agents = s * s
 
     for rng in rngs:
-        ss.options(rng=rng)
+        ss.options(_centralized = rng=='centralized')
         cfgs = []
         for rs in range(n_seeds):
             graphs = {
@@ -233,7 +239,7 @@ def sweep_n(n_seeds=default_n_rand_seeds):
     times = {}
 
     for rng in rngs:
-        ss.options(rng=rng)
+        ss.options(_centralized = rng=='centralized')
         cfgs = []
         for n_agents in n_agents_levels:
             for rs in range(n_seeds):

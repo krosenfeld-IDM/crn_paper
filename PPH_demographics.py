@@ -14,7 +14,7 @@ class PPH(ss.Pregnancy):
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
         super().__init__(pars, **kwargs)
 
-        self.p_infant_death = sps.bernoulli(p=0.5) # 50% chance of infant death if mother dies
+        self.p_infant_death = ss.bernoulli(p=0.5) # 50% chance of infant death if mother dies
         self.n_infant_deaths = 0 # Number of infant deaths on this timestep
         return
 
