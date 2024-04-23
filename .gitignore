@@ -1,1 +1,3 @@
 figs/*
+*.pyc
+.DS_Store

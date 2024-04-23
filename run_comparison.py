@@ -26,7 +26,7 @@ do_plot_timeseries = True
 
 # on branch fix_348
 #options.rng can take values in ['centralized', 'single', 'multi']
-ss.options(rng = 'multi')
+#ss.options(rng = 'multi')
 
 figdir = os.path.join(os.getcwd(), 'figs', network)
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
@@ -92,10 +92,10 @@ class GraphAnalyzer(ss.Analyzer):
 
     def initialize(self, sim):
         self.initialized = True
-        self.update_results(sim, init=True)
+        self.apply(sim, init=True)
         return
 
-    def update_results(self, sim, init=False):
+    def apply(self, sim, init=False):
         nodes = pd.DataFrame({
             'age': sim.people.age.values,
             'female': sim.people.female.values,
@@ -140,7 +140,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
         'analyzers': [GraphAnalyzer()] if analyze else [],
     }
     sim = ss.Sim(people=ppl, diseases=[hiv], networks=networks, demographics=[ss.Pregnancy(fertility_rate=20), ss.Deaths(death_rate=10)], pars=pars, label=lbl)
-    sim.initialize()
+    #sim.initialize()
 
     # Infect every other person, useful for exploration in conjunction with init_prev=0
     #sim.diseases['hiv'].set_prognoses(sim, np.arange(0,n,2), from_uids=None)
