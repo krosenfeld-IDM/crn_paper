@@ -19,7 +19,7 @@ def fix_dates(g):
         ax.xaxis.set_major_formatter(formatter)
 
 def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_year=-1):
-    sns.set(font_scale=1.2, style='whitegrid')
+    sns.set_theme(font_scale=1.2, style='whitegrid')
 
     # Renaming
     df.replace({'rng': {'centralized':'Centralized', 'multi': 'CRN'}}, inplace=True)

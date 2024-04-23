@@ -45,7 +45,6 @@ class PPH(ss.Pregnancy):
         if np.any(deliveries):
             # Infant deaths due to death of mother
             mn = sim.networks['maternalnet'].to_df()
-            infant_uids = mn.loc[mn['p1'].isin(deliveries)]['p2'].values # Find infants, not using find_contacts because that is bidirectional
 
             maternal_deaths = ss.true(self.ti_dead <= sim.ti)
             self.results['maternal_deaths'][sim.ti] = len(maternal_deaths)

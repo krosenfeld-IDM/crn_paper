@@ -194,10 +194,10 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
         cfgs = []
         for rs in range(n_seeds):
             graphs = {
-                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 95}),
+                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 140}), # 115
                 'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 10}),
-                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 13}),
-                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 18})
+                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 14}),
+                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 18.5})
                 #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
             for name, (G,sir_pars) in graphs.items():
