@@ -7,13 +7,14 @@ import os
 import starsim as ss
 import sciris as sc
 import pandas as pd
+import numpy as np
 import seaborn as sns
 
 n = 1_000 # Agents
 n_rand_seeds = 25
 xf_levels = [0.5, 0.8, 1.26, 2.0] + [1] # Must include 1 as that's the baseline | roughly np.logspace(np.log2(0.5), np.log2(20), 4, base=2)
 
-rngs = ['centralized', 'single', 'multi']
+rngs = ['centralized', 'multi']
 
 figdir = os.path.join(os.getcwd(), 'figs', 'Sweep')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
@@ -26,7 +27,7 @@ def run_sim(n, xf, rand_seed, rng):
         'std': 3,
         'pars': {
             #'duration': ss.lognorm_mean(mean=15*xf, stdev=15*xf),  # Can vary by age, year, and individual pair
-            'duration': ss.lognorm_mean(mean=15, stdev=15),  # Can vary by age, year, and individual pair
+            'duration': ss.lognorm_ex(mean=15, stdev=15),  # Can vary by age, year, and individual pair
             'part_rates': 0.9,  # Participation rates - can vary by sex and year
             'rel_part_rates': 1.0,
             'debut': 16,  # Age of debut can vary by sex, year, and individual
@@ -49,6 +50,9 @@ def run_sim(n, xf, rand_seed, rng):
         'rand_seed': rand_seed,
     }
     sim = ss.Sim(people=ppl, diseases=[hiv], demographics=[pregnancy], networks=networks, pars=pars, label=f'Sim with {n} agents and xf={xf}')
+    if rng == 'centralized':
+        for dist in sim.dists.dists.values():
+            dist.rng = np.random.mtrand._rand
     sim.initialize()
     sim.run()
 
@@ -68,8 +72,8 @@ def run_sim(n, xf, rand_seed, rng):
 def run_scenarios(figdir):
     results = []
     times = {}
-    for rng in ['centralized', 'single', 'multi']:
-        ss.options(rng=rng)
+    for rng in rngs:
+        ss.options(_centralized = rng=='centralized')
         cfgs = []
         for rs in range(n_rand_seeds):
             for xf in xf_levels:

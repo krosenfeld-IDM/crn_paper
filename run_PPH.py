@@ -4,7 +4,6 @@ Postpartum hemorrhage (PPH)  simulation with an intervention like E-MOTIVE
 
 # %% Imports and settings
 import starsim as ss
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
@@ -19,17 +18,17 @@ import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-covs = [0.1, 0.9] + [0]
+debug = False
 
+covs = [0.1, 0.9] + [0]
 PPH_INTV_EFFICACY = 0.6 # 60% reduction in maternal mortality due to PPH with intervention
 
-debug = False
-default_n_agents = [100_000, 1_000][debug]
-default_n_rand_seeds = [250, 25][debug]
+default_n_agents = [100_000, 10_000][debug]
+default_n_rand_seeds = [250, 1][debug]
 
 rngs = ['centralized', 'multi']
 
-figdir = os.path.join(os.getcwd(), 'figs', 'PPH')
+figdir = os.path.join(os.getcwd(), 'figs', 'PPH' if not debug else 'PPH-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 channels = ['Births', 'Maternal Deaths'] # Set to None for all channels
 
@@ -43,6 +42,9 @@ class PPH_Intv(ss.Intervention):
         super().__init__(**kwargs)
 
         self.p_pphintv = ss.bernoulli(p=lambda self, sim, uids: np.interp(sim.year, self.year, self.coverage))
+        #def fun(self, sim, uids):
+        #    return np.interp(sim.year, self.year, self.coverage)
+        #self.p_pphintv = ss.bernoulli(p=fun)
         self.eff_pphintv = ss.bernoulli(p=PPH_INTV_EFFICACY)
         return
 
@@ -58,10 +60,11 @@ class PPH_Intv(ss.Intervention):
             return
 
         pph = sim.demographics['pph']
-        maternal_deaths = ss.true(pph.ti_dead <= sim.ti)
+        maternal_deaths = (pph.ti_dead <= sim.ti).uids
         receive_pphintv = self.p_pphintv.filter(maternal_deaths)
         pph_deaths_averted = self.eff_pphintv.filter(receive_pphintv)
-        pph.ti_dead[pph_deaths_averted] = ss.INT_NAN
+        pph.ti_dead[pph_deaths_averted] = np.nan # Used to request death
+        sim.people.ti_dead[pph_deaths_averted] = np.nan # Used to actually "remove" people
 
         # Add results
         self.results['n_pphintv'][sim.ti] = len(receive_pphintv)
@@ -74,11 +77,12 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     # Make people using the distribution of the population by age
     age_data = pd.read_csv('data/ssa_agedist.csv')
     pars = {
-        'start': 1980,
+        'start': 2024,
         'end': 2030,
-        'remove_dead': True,
+        #'remove_dead': True,
         'rand_seed': rand_seed,
         #'slot_scale': 10,
+        'dt': 0.25,
     }
 
     asfr_data = pd.read_csv('data/ssa_asfr.csv')
@@ -87,7 +91,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     preg_pars = {
         #'fertility_rate': 50, # per 1,000 live women
         'fertility_rate': asfr_data, # per 1,000 live women.
-        'maternal_death_rate': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
+        'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
     }
     preg = PPH(preg_pars)
 
@@ -100,7 +104,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     }
     deaths = ss.Deaths(death_pars)
 
-    delay_start = 5 # years
+    delay_start = 1 # years
     if cov > 0:
         interventions = PPH_Intv(
             year =      [pars['start'], pars['start']+delay_start-0.1, pars['start']+delay_start], 
@@ -109,12 +113,6 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         interventions = None
 
     sim = ss.Sim(people=ppl, diseases=[], demographics=[preg, deaths], networks=ss.MaternalNet(), pars=pars, interventions=interventions) # Can add label
-
-    if rng == 'centralized':
-        for dist in sim.dists.dists.values():
-            dist.rng = np.random.mtrand._rand
-
-    sim.initialize()
     sim.run()
 
     df = pd.DataFrame( {
@@ -148,7 +146,7 @@ def run_scenarios(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
             for cov in covs:
                 cfgs.append({'cov':cov, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
         T = sc.tic()
-        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents}, iterkwargs=cfgs, die=False, serial=False)
+        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents}, iterkwargs=cfgs, die=False, serial=debug)
         times[f'rng={rng}'] = sc.toc(T, output=True)
 
     print('Timings:', times)
@@ -170,6 +168,7 @@ if __name__ == '__main__':
     if args.plot:
         print('Reading CSV file', args.plot)
         df = pd.read_csv(args.plot, index_col=0)
+        df['network'] = 'None'
     else:
         print('Running scenarios')
         df = run_scenarios(n_agents=args.n, n_seeds=args.s)
@@ -177,6 +176,5 @@ if __name__ == '__main__':
     print(df)
 
     plot_scenarios(df, figdir, channels, var1='cov', var2='channel')
-    #plt.show()
 
     print('Done')

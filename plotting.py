@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as mtick
 import networkx as nx
 import sciris as sc
 import datetime as dt
@@ -17,6 +18,22 @@ def fix_dates(g):
         formatter = mdates.ConciseDateFormatter(locator)
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(formatter)
+
+def fix_yaxis(g):
+    for ax in g.axes.flat:
+        locator = mtick.MaxNLocator(nbins=5, min_n_ticks=5)
+        #formatter = mdates.ConciseDateFormatter(locator)
+        ax.yaxis.set_major_locator(locator)
+        #ax.yaxis.set_major_formatter(formatter)
+
+def fix_axis_labels(g, prefix=None):
+    for i in range(g.axes.shape[0]):
+        text = g.axes[i,-1].texts[0].get_text()
+        if prefix is not None:
+            text = prefix + text
+        g.axes[i,0].set_ylabel(text)
+        g.axes[i,-1].texts[0].set_text('')
+    return
 
 def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_year=-1):
     sns.set_theme(font_scale=1.2, style='whitegrid')
@@ -65,33 +82,45 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     mrg['Coverage'] = pd.Categorical(mrg['Coverage'], categories=cov_ord[:-1]) # Agh^2!
 
     id_vars = ['date', cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
-    cor = mrg.groupby(id_vars)[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
+    cor = mrg.reset_index().groupby(id_vars, observed=True)[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
     cor.name = 'Pearson'
     #cor.replace([np.inf, -np.inf, np.nan], 1, inplace=True)
 
     kw = {'height': 3, 'aspect': 1.4}
-    fkw = {'sharey': False, 'sharex': 'col', 'margin_titles': True}
+    fkw = {'sharey': 'row', 'sharex': 'col', 'margin_titles': True} # facet_kws={**fkw, **{'sharey':'row'}}
 
     var1_ord = None
     if var1=='cov':
         var1 = cov
         var1_ord = None # Categorical, so not needed
 
+    var2_ord = None # Categorical, so not needed
     if var2=='cov':
         var2 = cov
         var2_ord = None # Categorical, so not needed
 
-    rng_colors = [(0,1,1), (1,0,1)]
+    rng_colors = [(0,0,0), (1,0,0)] # [(0,1,1), (1,0,1)]
 
     
     #%% TIMESERIES
+
+    def plot_median(data, **kws):
+        ax = plt.gca()
+        sns.lineplot(data=data, x='date', y='Value', hue=var1, hue_order=var1_ord,
+            palette='Set1', errorbar=('pi', 95), estimator=np.median, lw=2, ax=ax)
+        return
+
+    #g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row=var2, col='rng', col_order=rngs,
+    #    palette='Set1', facet_kws=fkw, **kw, errorbar=('pi', 25), estimator=np.median, lw=2)
     g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row=var2, col='rng', col_order=rngs,
-        palette='Set1', facet_kws=fkw, **kw,
-        errorbar=('pi', 25), estimator=np.median, lw=2)
-        #units='rand_seed', estimator=None, lw=0.1)
+        palette='Set1', facet_kws=fkw, **kw, units='rand_seed', estimator=None, lw=0.05, alpha=0.5)
+    g.map_dataframe(plot_median)
+
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels('Date')
     fix_dates(g)
+    fix_yaxis(g)
+    fix_axis_labels(g)
     g.figure.savefig(os.path.join(figdir, 'timeseries.png'), bbox_inches='tight', dpi=300)
     plt.close(g.figure)
 
@@ -104,12 +133,13 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             g.set_titles(col_template='{col_name}', row_template='{row_name}')
             g.set_xlabels('Date')
             fix_dates(g)
+            fix_yaxis(g)
             g.figure.savefig(os.path.join(figdir, f'timeseries_{ch.replace(" ", "")}.png'), bbox_inches='tight', dpi=300)
             plt.close(g.figure)
 
 
     #%% DIFF TIMESERIES
-    for ms, mrg_by_ms in mrg.groupby('rng'):
+    for ms, mrg_by_ms in mrg.groupby('rng', observed=True):
         g = sns.relplot(kind='line', data=mrg_by_ms, x='date', y='Value - Reference', hue=var1, hue_order=var1_ord, col=var2, #col_order=var2_ord,
                 palette='Set1', estimator=None, units='rand_seed', lw=0.5, facet_kws=fkw, **kw)
         g.set_titles(col_template='{col_name}', row_template='{row_name}')
@@ -117,6 +147,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.figure.subplots_adjust(top=0.88)
         g.set_xlabels('Date')
         fix_dates(g)
+        fix_yaxis(g)
         g.figure.savefig(os.path.join(figdir, f'diff_{ms}.png'), bbox_inches='tight', dpi=300)
         plt.close(g.figure)
 
@@ -141,6 +172,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='Set1', **kw)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels(f'Value - Reference on {slice_str}')
+    fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
     plt.close(g.figure)
 
@@ -150,6 +182,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             col=var2, row=var1, facet_kws=facet_kws, palette='Set1', **kw)
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels(f'Value - Reference on {slice_str}')
+    fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'slice2.png'), bbox_inches='tight', dpi=300)
     plt.close(g.figure)
 
@@ -174,6 +207,8 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels(f'Reference on {slice_str}')
     g.set_ylabels(f'Value on {slice_str}')
+    #fix_axis_labels(g, postfix=f'as of {slice_str}')
+    fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'cor_slice.png'), bbox_inches='tight', dpi=300)
     plt.close(g.figure)
 
@@ -188,20 +223,27 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.figure.subplots_adjust(top=0.88)
     g.set_xlabels('Date')
     fix_dates(g)
+    fix_yaxis(g)
+    fix_axis_labels(g, prefix='Difference in\n')
     g.figure.savefig(os.path.join(figdir, f'diff.png'), bbox_inches='tight', dpi=300)
     plt.close(g.figure)
 
 
     #%% CORRELATION OVER TIME
     try:
-        corf = cor.to_frame()
+        if isinstance(cor, pd.Series):
+            corf = cor.to_frame()
+        else:
+            corf = cor
         g = sns.relplot(kind='line', data=corf, x='date', y='Pearson', hue='rng', hue_order=rngs,
-                col=var1, col_order=var1_ord, row=var2,
+                col=var1, col_order=var1_ord, row=var2, row_order=var2_ord, style='rng', style_order=rngs,
                 palette=rng_colors, errorbar='sd', lw=2, facet_kws=fkw, **kw)
         g.set_titles(col_template='{col_name}', row_template='{row_name}')
         g.figure.subplots_adjust(top=0.88)
         g.set_xlabels('Date')
         fix_dates(g)
+        fix_yaxis(g)
+        fix_axis_labels(g)
         g.figure.savefig(os.path.join(figdir, 'cor.png'), bbox_inches='tight', dpi=300)
         plt.close(g.figure)
     except Exception as e:

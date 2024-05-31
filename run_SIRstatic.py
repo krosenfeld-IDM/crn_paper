@@ -5,23 +5,23 @@ Static networks with SIR disease dynamics // vaccination
 # %% Imports and settings
 import os
 import starsim as ss
-import scipy.stats as sps
 import matplotlib.pyplot as plt
 import sciris as sc
 import pandas as pd
 import numpy as np
 import networkx as nx
+from networkx.utils import pairwise
 
 from plotting import plot_scenarios, plot_graph
 
-sc.options(interactive=False) # Assume not running interactively
+sc.options(interactive=True) # Assume not running interactively
 
 # Suppress warning from seaborn
 import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-rngs = ['centralized', 'multi'] # 'single', 
+rngs = ['centralized', 'multi']
 
 debug = False
 default_n_agents = [10_000, 1_000][debug]
@@ -56,7 +56,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         'init_prev': 0,  # Will seed manually
         'p_death': 0, # No death
     }
-    sir_pars = ss.omerge(default_sir_pars, sir_pars)
+    sir_pars = sc.mergedicts(default_sir_pars, sir_pars)
     sir = ss.SIR(sir_pars)
 
     default_pars = {
@@ -65,10 +65,9 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         'dt': 1/365,
         'rand_seed': rand_seed,
         'verbose': 0,
-        'remove_dead': True,
         'slot_scale': 10 # Increase slot scale to reduce repeated slots
     }
-    pars = ss.omerge(default_pars, pars)
+    pars = sc.mergedicts(default_pars, pars)
 
     if cov > 0:
         # Create the product - a vaccine with specified efficacy
@@ -80,7 +79,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
             #prob = [0, 0, cov],
             years = pars['start'] + 5/365, # 5 days after start
             prob = cov,
-            annual_prob = False,
             product=MyVaccine
         )
         pars['interventions'] = [ MyIntervention ]
@@ -99,7 +97,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         uids = np.arange(n_agents//10)
     else:
         uids = np.array([n_agents//2])
-    sim.diseases.sir.set_prognoses(sim, uids=uids, source_uids=None)
+    sim.diseases.sir.set_prognoses(uids=ss.uids(uids), source_uids=None)
 
     sim.run()
 
@@ -162,6 +160,7 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     return df
 
 
+'''
 def grid_2d(m, n):
     from networkx.utils import pairwise
     G = nx.empty_graph(0)
@@ -171,7 +170,30 @@ def grid_2d(m, n):
     G.add_edges_from((i*m+j, pi*m+j) for pi, i in pairwise(rows) for j in cols)
     G.add_edges_from((i*m+j, i*m+pj) for i in rows for pj, j in pairwise(cols))
     return G
+'''
 
+class Grid2D:
+    def __init__(self, m, n):
+        self.G = nx.empty_graph(0)
+        cols = np.arange(n)
+        rows = np.arange(m)
+        self.nodes = np.arange(m*n)
+
+        self.Xp, self.Yp = np.meshgrid(cols, rows, indexing='ij')
+
+        self.G.add_nodes_from(self.nodes)
+
+        self.G.add_edges_from((i*m+j, pi*m+j) for pi, i in pairwise(rows) for j in cols)
+        self.G.add_edges_from((i*m+j, i*m+pj) for i in rows for pj, j in pairwise(cols))
+        return
+
+    def plot(self, ax=None):
+        if ax == None:
+            fig, ax = plt.subplots()
+        ax.scatter(self.Xp.flatten(), self.Yp.flatten(), s=10, marker='o')
+
+        nx.draw(self.G, pos={i:(self.Xp.flatten()[i], self.Yp.flatten()[i]) for i in self.nodes}, ax=ax)
+        return ax
 
 def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     figdir = os.path.join(basedir, 'SIR_network')
@@ -265,8 +287,48 @@ def sweep_n(n_seeds=default_n_rand_seeds):
 
     return df
 
+def audit():
+    figdir = os.path.join(basedir, 'SIR_audit')
+    sc.path(figdir).mkdir(parents=True, exist_ok=True)
+
+    s = 5
+    n_agents = s**2
+    rs = 0 # Seed 0
+
+    cov_levels = [0, 0.25] # Must include 0 as that's the reference level
+    efficacy = 1
+
+    results = []
+
+    cfgs = []
+    G = Grid2D(m=s, n=s).G
+    G.name = 'Grid 2D'
+    sir_pars = {'beta': 18.5}
+
+    for cov in cov_levels:
+        cfgs.append({'n_agents':n_agents, 'cov':cov, 'rand_seed':rs, 'network':G, 'idx':len(cfgs)})
+    T = sc.tic()
+    results += sc.parallelize(run_sim, kwargs={'eff':efficacy, 'sir_pars':sir_pars, 'fixed_initial_prevalence':True, 'rng':'multi'}, iterkwargs=cfgs, die=True, serial=False)
+
+    print('Timings:', sc.toc(T, output=True))
+
+    df = pd.concat(results)
+
+    # NORMALIZE
+    for col in ['Susceptible', 'Infected', 'Recovered']:
+        df[col] /= df['n_agents']
+
+    df.to_csv(os.path.join(figdir, 'results.csv'))
+
+    return df
+
 
 if __name__ == '__main__':
+
+    g = Grid2D(5, 5)
+    g.plot()
+    plt.show()
+
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -286,9 +348,10 @@ if __name__ == '__main__':
                 print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        #results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
         #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
         #results['SIR_n'] = sweep_n(n_seeds=args.s)
+        results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network')
@@ -301,5 +364,9 @@ if __name__ == '__main__':
     if 'SIR_n' in results:
         figdir = os.path.join(basedir, 'SIR_n')
         plot_scenarios(results['SIR_n'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
+
+    if 'SIR_audit' in results:
+        figdir = os.path.join(basedir, 'SIR_audit')
+        ###plot_scenarios(results['SIR_audit'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
     
     print('Done')
