@@ -25,7 +25,7 @@ default_n_agents = [10_000, 1_000][debug]
 default_n_rand_seeds = [100, 10][debug]
 intv_cov_levels = [0.01, 0.10, 0.25, 0.73] + [0] # Must include 0 as that's the baseline
 
-figdir = os.path.join(os.getcwd(), 'figs', 'HIV')
+figdir = os.path.join(os.getcwd(), 'figs', 'HIV' if not debug else 'HIV-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 class change_beta(ss.Intervention):
@@ -74,7 +74,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, art_eff=0.96, pars=None, hiv_par
         'init_prev': np.maximum(5/n_agents, 0.01),
         'art_efficacy': art_eff,
     }
-    hiv_pars = ss.omerge(default_hiv_pars, hiv_pars)
+    hiv_pars = sc.mergedicts(default_hiv_pars, hiv_pars)
     hiv = ss.HIV(hiv_pars)
 
     pregnancy = ss.Pregnancy(fertility_rate=20)
@@ -82,7 +82,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, art_eff=0.96, pars=None, hiv_par
 
     y = [1990, 1995, 2000]
     xb = [0.7, 0.7, 0.7] # Multiplicative reductions
-    cb = change_beta(y, xb)
+    interventions = [change_beta(y, xb)]
 
     default_pars = {
         'start': 1980,
@@ -90,23 +90,17 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, art_eff=0.96, pars=None, hiv_par
         'dt': 1/12,
         'rand_seed': rand_seed,
         'verbose': 0,
-        'remove_dead': True,
         'slot_scale': 10 # Increase slot scale to reduce repeated slots
     }
-    pars = ss.omerge(default_pars, pars)
+    pars = sc.mergedicts(default_pars, pars)
 
     lbl = f'Sim {idx}: agents={n_agents}, cov={cov}, seed={rand_seed}, rng={rng}'
     print('Starting', lbl)
 
     if cov > 0:
-        pars['interventions'] = [ ss.hiv.ART(year=[2004, 2010, 2020], coverage=[0, cov/4, cov]) ]
+        interventions += [ ss.hiv.ART(year=[2004, 2010, 2020], coverage=[0, cov/4, cov]) ]
 
-    sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], interventions=cb, pars=pars, label=lbl)
-
-    if rng == 'centralized':
-        for dist in sim.dists.dists.values():
-            dist.rng = np.random.mtrand._rand
-
+    sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], interventions=interventions, pars=pars, label=lbl)
     sim.initialize()
     sim.run()
 

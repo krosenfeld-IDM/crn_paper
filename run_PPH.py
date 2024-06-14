@@ -48,8 +48,8 @@ class PPH_Intv(ss.Intervention):
         self.eff_pphintv = ss.bernoulli(p=PPH_INTV_EFFICACY)
         return
 
-    def initialize(self, sim):
-        super().initialize(sim)
+    def init_pre(self, sim):
+        super().init_pre(sim)
         self.results += ss.Result(self.name, 'n_pphintv', sim.npts, dtype=int)
         self.results += ss.Result(self.name, 'n_mothers_saved', sim.npts, dtype=int)
         self.initialized = True
@@ -67,8 +67,8 @@ class PPH_Intv(ss.Intervention):
         sim.people.ti_dead[pph_deaths_averted] = np.nan # Used to actually "remove" people
 
         # Add results
-        self.results['n_pphintv'][sim.ti] = len(receive_pphintv)
-        self.results['n_mothers_saved'][sim.ti] = len(pph_deaths_averted)
+        self.results['n_pphintv'][self.sim.ti] = len(receive_pphintv)
+        self.results['n_mothers_saved'][self.sim.ti] = len(pph_deaths_averted)
 
         return len(pph_deaths_averted)
 

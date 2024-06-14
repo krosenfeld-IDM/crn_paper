@@ -325,10 +325,6 @@ def audit():
 
 if __name__ == '__main__':
 
-    g = Grid2D(5, 5)
-    g.plot()
-    plt.show()
-
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -348,10 +344,10 @@ if __name__ == '__main__':
                 print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        #results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
-        #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
-        #results['SIR_n'] = sweep_n(n_seeds=args.s)
-        results['SIR_audit'] = audit()
+        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
+        results['SIR_n'] = sweep_n(n_seeds=args.s)
+        #results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network')
@@ -368,5 +364,9 @@ if __name__ == '__main__':
     if 'SIR_audit' in results:
         figdir = os.path.join(basedir, 'SIR_audit')
         ###plot_scenarios(results['SIR_audit'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
+
+        #g = Grid2D(5, 5)
+        #g.plot()
+        #plt.show()
     
     print('Done')
