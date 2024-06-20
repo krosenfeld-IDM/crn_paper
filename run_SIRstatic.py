@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 rngs = ['centralized', 'multi']
 
-debug = False
+debug = True
 default_n_agents = [10_000, 1_000][debug]
 default_n_rand_seeds = [250, 25][debug]
 
@@ -85,10 +85,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
     sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars, label=lbl)
 
-    if rng == 'centralized':
-        for dist in sim.dists.dists.values():
-            dist.rng = np.random.mtrand._rand
-
     sim.initialize()
 
     # Infect agent zero to start the simulation
@@ -130,7 +126,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
 
 def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
-    figdir = os.path.join(basedir, 'SIR_coverage')
+    figdir = os.path.join(basedir, 'SIR_coverage' if not debug else 'SIR_coverage-debug')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     #cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the reference level
@@ -196,7 +192,7 @@ class Grid2D:
         return ax
 
 def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
-    figdir = os.path.join(basedir, 'SIR_network')
+    figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     print('Overriding n_agents to 1,000')
@@ -219,7 +215,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
                 'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 140}), # 115
                 'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 10}),
                 'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 14}),
-                'Grid 2D':                      (grid_2d(m=s, n=s), {'beta': 18.5})
+                'Grid 2D':                      (Grid2D(m=s, n=s).G, {'beta': 18.5})
                 #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
             for name, (G,sir_pars) in graphs.items():
@@ -245,7 +241,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
 
 
 def sweep_n(n_seeds=default_n_rand_seeds):
-    figdir = os.path.join(basedir, 'SIR_n')
+    figdir = os.path.join(basedir, 'SIR_n' if not debug else 'SIR_n-debug')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     n_agents_levels = [10, 100, 1000]
@@ -288,7 +284,7 @@ def sweep_n(n_seeds=default_n_rand_seeds):
     return df
 
 def audit():
-    figdir = os.path.join(basedir, 'SIR_audit')
+    figdir = os.path.join(basedir, 'SIR_audit' if not debug else 'SIR_audit-debug')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
     s = 5
@@ -350,19 +346,19 @@ if __name__ == '__main__':
         #results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
-        figdir = os.path.join(basedir, 'SIR_network')
+        figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')
         plot_scenarios(results['SIR_network'], figdir, channels=['Recovered'], var1='network', var2='cov')
 
     if 'SIR_coverage' in results:
-        figdir = os.path.join(basedir, 'SIR_coverage')
+        figdir = os.path.join(basedir, 'SIR_coverage' if not debug else 'SIR_coverage-debug')
         plot_scenarios(results['SIR_coverage'], figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
 
     if 'SIR_n' in results:
-        figdir = os.path.join(basedir, 'SIR_n')
+        figdir = os.path.join(basedir, 'SIR_n' if not debug else 'SIR_n-debug')
         plot_scenarios(results['SIR_n'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
 
     if 'SIR_audit' in results:
-        figdir = os.path.join(basedir, 'SIR_audit')
+        figdir = os.path.join(basedir, 'SIR_audit' if not debug else 'SIR_audit-debug')
         ###plot_scenarios(results['SIR_audit'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
 
         #g = Grid2D(5, 5)

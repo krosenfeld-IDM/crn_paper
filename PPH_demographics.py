@@ -12,10 +12,13 @@ class PPH(ss.Pregnancy):
     # Postpartum hemorrhage (PPH) --> maternal and infant death
 
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
-        super().__init__(pars, **kwargs)
+        super().__init__()
 
-        self.p_infant_death = ss.bernoulli(p=0.5) # 50% chance of infant death if mother dies
-        self.n_infant_deaths = 0 # Number of infant deaths on this timestep
+        self.default_pars(
+            inherit = True,
+            p_infant_death = ss.bernoulli(p=0.5), # 50% chance of infant death if mother dies
+        )
+        self.update_pars(pars, **kwargs)
 
         # For reporting
         self._possible_maternal_death_uids = None
@@ -23,8 +26,8 @@ class PPH(ss.Pregnancy):
 
         return
 
-    def initialize(self, sim):
-        super().initialize(sim)
+    def init_pre(self, sim):
+        super().init_pre(sim)
         assert 'maternalnet' in sim.networks, 'PPH demographics requires the MaternalNet'
         return
 
@@ -63,7 +66,7 @@ class PPH(ss.Pregnancy):
                 # And only keep edges where dur >= 0, others are inactive
                 infant_uids_mm = mn.loc[(mn['p1'].isin(maternal_deaths)) & (mn['dur'] >= 0)]['p2'].values
 
-                infant_deaths = ss.uids(self.p_infant_death.filter(infant_uids_mm))
+                infant_deaths = ss.uids(self.pars.p_infant_death.filter(infant_uids_mm))
                 ###self.results['infant_deaths'][sim.ti] = len(infant_deaths)
                 if np.any(infant_deaths):
                     self._possible_infant_death_uids = maternal_deaths

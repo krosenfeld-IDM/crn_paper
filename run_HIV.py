@@ -77,7 +77,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, art_eff=0.96, pars=None, hiv_par
     hiv_pars = sc.mergedicts(default_hiv_pars, hiv_pars)
     hiv = ss.HIV(hiv_pars)
 
-    pregnancy = ss.Pregnancy(fertility_rate=20)
+    pregnancy = ss.Pregnancy(fertility_rate=60)
     deaths = ss.Deaths(death_rate=10)
 
     y = [1990, 1995, 2000]

@@ -74,6 +74,8 @@ class PPH_Intv(ss.Intervention):
 
 
 def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
+    print(f'Starting sim {idx} with rand_seed={rand_seed} and cov={cov}, rng={rng}')
+
     # Make people using the distribution of the population by age
     age_data = pd.read_csv('data/ssa_agedist.csv')
     pars = {
@@ -82,6 +84,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         #'remove_dead': True,
         'rand_seed': rand_seed,
         #'slot_scale': 10,
+        'verbose': 0,
         'dt': 0.25,
     }
 
@@ -92,6 +95,8 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         #'fertility_rate': 50, # per 1,000 live women
         'fertility_rate': asfr_data, # per 1,000 live women.
         'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
+        'min_age': -1,
+        'max_age': 100,
     }
     preg = PPH(preg_pars)
 
@@ -129,8 +134,6 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     df['network'] = 'None'
     df['eff'] = PPH_INTV_EFFICACY
     df['n_agents'] = n_agents
-
-    print(f'Finishing sim {idx} with rand_seed={rand_seed} and cov={cov}, rng={rng}')
 
     return df
 
