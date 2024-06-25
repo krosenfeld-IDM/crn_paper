@@ -309,12 +309,15 @@ def audit():
     print('Timings:', sc.toc(T, output=True))
 
     df = pd.concat(results)
-
-    # NORMALIZE
-    for col in ['Susceptible', 'Infected', 'Recovered']:
-        df[col] /= df['n_agents']
-
     df.to_csv(os.path.join(figdir, 'results.csv'))
+
+    def plot_graph(data, G, **kwargs):
+        pass
+
+    import seaborn as sns
+    g = sns.FacetGrid(data=df, col='cov')
+    g.map_dataframe(plot_graph, G)
+
 
     return df
 
@@ -340,10 +343,10 @@ if __name__ == '__main__':
                 print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
-        results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
-        results['SIR_n'] = sweep_n(n_seeds=args.s)
-        #results['SIR_audit'] = audit()
+        #results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
+        #results['SIR_n'] = sweep_n(n_seeds=args.s)
+        results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')

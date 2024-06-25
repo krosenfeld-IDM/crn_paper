@@ -24,13 +24,13 @@ covs = [0.1, 0.9] + [0]
 PPH_INTV_EFFICACY = 0.6 # 60% reduction in maternal mortality due to PPH with intervention
 
 default_n_agents = [100_000, 10_000][debug]
-default_n_rand_seeds = [250, 1][debug]
+default_n_rand_seeds = [250, 3][debug]
 
 rngs = ['centralized', 'multi']
 
 figdir = os.path.join(os.getcwd(), 'figs', 'PPH' if not debug else 'PPH-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
-channels = ['Births', 'Maternal Deaths'] # Set to None for all channels
+channels = ['Births', 'Maternal Deaths', 'CBR'] # Set to None for all channels
 
 class PPH_Intv(ss.Intervention):
 
@@ -95,8 +95,8 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         #'fertility_rate': 50, # per 1,000 live women
         'fertility_rate': asfr_data, # per 1,000 live women.
         'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
-        'min_age': -1,
-        'max_age': 100,
+        #'min_age': -1,
+        #'max_age': 1000,
     }
     preg = PPH(preg_pars)
 
@@ -124,6 +124,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         'year': sim.yearvec,
         #'pph.mother_died.cumsum': sim.results.pph.mother_died.cumsum(),
         'Births': sim.results.pph.births.cumsum(),
+        'CBR': sim.results.pph.cbr,
         'Deaths': sim.results.deaths.cumulative,
         'Maternal Deaths': sim.results.pph.maternal_deaths.cumsum(),
         'Infant Deaths': sim.results.pph.infant_deaths.cumsum(),

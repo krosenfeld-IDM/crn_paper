@@ -69,7 +69,7 @@ class PPH(ss.Pregnancy):
                 infant_deaths = ss.uids(self.pars.p_infant_death.filter(infant_uids_mm))
                 ###self.results['infant_deaths'][sim.ti] = len(infant_deaths)
                 if np.any(infant_deaths):
-                    self._possible_infant_death_uids = maternal_deaths
+                    self._possible_infant_death_uids = infant_deaths
                     self.sim.people.request_death(infant_deaths)
 
         return
