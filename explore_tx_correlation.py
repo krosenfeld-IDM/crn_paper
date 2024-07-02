@@ -16,10 +16,10 @@ warnings.filterwarnings("ignore", "overflow encountered in scalar multiply")
 
 np.random.seed(0) # Shouldn't matter, but for reproducibility
  
-n = 4 # Number of nodes
+n = 5 # Number of nodes
 n_sources = 2 # Number of sources (seed infections)
 
-reps = 250_000
+reps = 1_000_000
 edge_prob = 1 # Edge probability
 trans_prob = 0.4
 seed = 1
@@ -72,13 +72,13 @@ def modulo(G):
     return tx
 
 
-def weyl_middle_sq(G):
+def middle_sq(G):
     src = nx.get_node_attributes(G, 'infected')
     infected = []
     tx = []
-    el = list(G.edges())
     r1 = np.random.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
     r2 = np.random.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
+    el = list(G.edges())
     np.random.shuffle(el)
     for (n1,n2) in el:
         # n1 --> n2
@@ -88,6 +88,27 @@ def weyl_middle_sq(G):
             infected.append(n2)
         # n2 --> n1
         r = combine_rands(r1[n2], r2[n1])
+        if (src[n2]) and (not src[n1]) and (n1 not in infected) and (r < trans_prob):
+            tx.append((n2, n1))
+            infected.append(n1)
+    return tx
+
+def xor(G):
+    src = nx.get_node_attributes(G, 'infected')
+    infected = []
+    tx = []
+    r1 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
+    r2 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
+    el = list(G.edges())
+    np.random.shuffle(el)
+    for (n1,n2) in el:
+        # n1 --> n2
+        r = np.bitwise_xor(r1[n1]*r2[n2], r1[n1]-r2[n2]).astype(np.uint64) / np.iinfo(np.uint64).max
+        if (src[n1]) and (not src[n2]) and (n2 not in infected) and (r < trans_prob):
+            tx.append((n1, n2))
+            infected.append(n2)
+        # n2 --> n1
+        r = np.bitwise_xor(r1[n2]*r2[n1], r1[n2]-r2[n1]).astype(np.uint64) / np.iinfo(np.uint64).max
         if (src[n2]) and (not src[n1]) and (n1 not in infected) and (r < trans_prob):
             tx.append((n2, n1))
             infected.append(n1)
@@ -140,13 +161,25 @@ for source in sources:
 nx.set_node_attributes(G, infected, 'infected')
  
 # Do transmissions via each method in parallel
-results = sc.parallelize(transmit, iterkwargs=[{'trans_fn':random}, {'trans_fn':weyl_middle_sq}, {'trans_fn':combine_prob}, {'trans_fn':modulo}], kwargs={'G':G}, die=True, serial=False)
+results = sc.parallelize(transmit, iterkwargs=[
+    {'trans_fn':random},
+    {'trans_fn':combine_prob},
+    {'trans_fn':modulo},
+    {'trans_fn':middle_sq},
+    {'trans_fn':xor}
+    ], kwargs={'G':G}, die=True, serial=False)
 tx, cnt, times = zip(*results)
 
 df = pd.concat(cnt, axis=1) \
     .fillna(0) \
     .astype(int)
-df.columns = ['True Random', 'Weyl Middle Square', 'Combine Probabilities', 'Modulo']
+df.columns = [
+    'True Random',
+    'Combine Probabilities',
+    'Modulo',
+    'Middle Square',
+    'XOR'
+]
 
 # Manipulate results
 df.reset_index(inplace=True)
@@ -159,7 +192,8 @@ chisq = []
 f_exp = df['True Random']
 for method in df.columns[2:]:
     f_obs = df[method]
-    chisq.append((method, sps.chisquare(f_obs, f_exp).pvalue))
+    T = df[['True Random', method]]
+    chisq.append((method, sps.chi2_contingency(T).pvalue)) # Chi-square test of independence of variables in a contingency table.
 x2df = pd.DataFrame(chisq, columns=['Method', 'P-Value']).set_index('Method')
 x2df.to_csv( os.path.join(figdir, 'chisq.csv') )
 

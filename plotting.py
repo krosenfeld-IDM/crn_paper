@@ -9,6 +9,10 @@ import networkx as nx
 import sciris as sc
 import datetime as dt
 
+# TTF
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+
 def fix_dates(g):
     for ax in g.axes.flat:
         #ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%Y'))
@@ -63,6 +67,8 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
 
     # Slice to the one channel specified by the user
     d = d.loc[d['channel'].isin(channels)]
+
+    d['channel'] = pd.Categorical(d['channel'], categories = channels)
 
     if var1 != 'channel' and var2 != 'channel':
         assert len(channels)==1, 'If not slicing over channel, only one channel can be provided.'
@@ -122,11 +128,12 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     fix_yaxis(g)
     fix_axis_labels(g)
     g.figure.savefig(os.path.join(figdir, 'timeseries.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'timeseries.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
 
     #%% TIMESERIES: specific channels
-    for ch in ['Maternal Deaths', 'Infected']:
+    for ch in ['Total Deaths', 'Maternal Deaths', 'Infected']:
         if ch in d['channel'].unique():
             g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row='channel', row_order=[ch], col='rng', col_order=rngs,
                 palette='Set1', errorbar='sd', lw=2, facet_kws=fkw, **kw)
@@ -235,6 +242,9 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             corf = cor.to_frame()
         else:
             corf = cor
+
+        corf.fillna(value=1.0, inplace=True) # Assume NaNs are perfect correlation
+
         g = sns.relplot(kind='line', data=corf, x='date', y='Pearson', hue='rng', hue_order=rngs,
                 col=var1, col_order=var1_ord, row=var2, row_order=var2_ord, style='rng', style_order=rngs,
                 palette=rng_colors, errorbar='sd', lw=2, facet_kws=fkw, **kw)
@@ -248,6 +258,26 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         plt.close(g.figure)
     except Exception as e:
         print('CORRELATION OVER TIME did not work')
+        print(e)
+
+
+    #%% CORRELATION OVER TIME SINGLE PANEL
+    try:
+        g = sns.relplot(kind='line', data=corf, x='date', y='Pearson',
+                col=var2, col_order=var2_ord,
+                hue=var1, hue_order=var1_ord,
+                style='rng', style_order=rngs,
+                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.figure.subplots_adjust(top=0.88)
+        g.set_xlabels('Date')
+        fix_dates(g)
+        fix_yaxis(g)
+        #fix_axis_labels(g)
+        g.figure.savefig(os.path.join(figdir, 'cor_single.png'), bbox_inches='tight', dpi=300)
+        plt.close(g.figure)
+    except Exception as e:
+        print('CORRELATION OVER TIME SINGLE did not work')
         print(e)
 
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))

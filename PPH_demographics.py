@@ -38,8 +38,8 @@ class PPH(ss.Pregnancy):
         super().init_results()
         npts = self.sim.npts
         self.results += [
-            ss.Result(self.name, 'infant_deaths', npts, dtype=int, scale=True),
-            ss.Result(self.name, 'maternal_deaths', npts, dtype=int, scale=True),
+            ss.Result(self.name, 'infant_deaths', npts, dtype=int, scale=True, label='Infant Deaths'),
+            ss.Result(self.name, 'maternal_deaths', npts, dtype=int, scale=True, label='Maternal Deaths'),
         ]
         return
 

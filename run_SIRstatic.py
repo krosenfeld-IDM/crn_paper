@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 rngs = ['centralized', 'multi']
 
-debug = True
+debug = False
 default_n_agents = [10_000, 1_000][debug]
 default_n_rand_seeds = [250, 25][debug]
 
@@ -54,7 +54,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         'dur_inf': ss.expon(scale=30/365),
         #'dur_inf': sps.weibull_min(c=3, scale=33.5/365), # Can check sir_pars['dur_inf'].mean()
         'init_prev': 0,  # Will seed manually
-        'p_death': 0, # No death
+        'p_death': 0.05, # 5% chance of death
     }
     sir_pars = sc.mergedicts(default_sir_pars, sir_pars)
     sir = ss.SIR(sir_pars)
@@ -248,9 +248,9 @@ def sweep_n(n_seeds=default_n_rand_seeds):
     if not debug:
         n_agents_levels += [10_000]#, 100_000]
 
-    cov_levels = [0, 0.15] # Must include 0 as that's the reference level
+    #cov_levels = [0, 0.15] # Must include 0 as that's the reference level
     efficacy = 0.3
-    #cov_levels = [0, 0.05, 0.90] # Must include 0 as that's the reference level
+    cov_levels = [0, 0.05, 0.90] # Must include 0 as that's the reference level
     #efficacy = 0.8
 
     results = []
@@ -343,10 +343,10 @@ if __name__ == '__main__':
                 print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        #results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
         #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
-        #results['SIR_n'] = sweep_n(n_seeds=args.s)
-        results['SIR_audit'] = audit()
+        results['SIR_n'] = sweep_n(n_seeds=args.s)
+        #results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')

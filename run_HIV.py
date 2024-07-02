@@ -22,7 +22,7 @@ rngs = ['centralized', 'multi'] # 'single',
 
 debug = False
 default_n_agents = [10_000, 1_000][debug]
-default_n_rand_seeds = [100, 10][debug]
+default_n_rand_seeds = [1000, 10][debug]
 intv_cov_levels = [0.01, 0.10, 0.25, 0.73] + [0] # Must include 0 as that's the baseline
 
 figdir = os.path.join(os.getcwd(), 'figs', 'HIV' if not debug else 'HIV-debug')

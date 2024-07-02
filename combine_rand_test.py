@@ -6,7 +6,7 @@ import numpy as np
 np.random.seed(0)
 
 n = 1_000
-save = True
+save = False
 
 def combine_rands(a, b):
     maxval = np.iinfo(np.uint32).max + 2 # +2 to ensure values can never be identically zero
@@ -74,8 +74,9 @@ mylib.freeArray(zo)
 import matplotlib.pyplot as plt
 plt.hist(z, bins=1000)
 
-#if save:
-#    strs = ''.join([np.binary_repr(i) for i in zints])
-#    sc.savetext(filename='zstrs.txt', string=strs)
+if save:
+    import sciris as sc
+    strs = ''.join([np.binary_repr(i) for i in ints])
+    sc.savetext(filename='zstrs.txt', string=strs)
 
 plt.show()

@@ -30,7 +30,7 @@ rngs = ['centralized', 'multi']
 
 figdir = os.path.join(os.getcwd(), 'figs', 'PPH' if not debug else 'PPH-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
-channels = ['Births', 'Maternal Deaths', 'CBR'] # Set to None for all channels
+channels = ['Births', 'Maternal Deaths', 'Total Deaths'] # Set to None for all channels
 
 class PPH_Intv(ss.Intervention):
 
@@ -125,7 +125,8 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         #'pph.mother_died.cumsum': sim.results.pph.mother_died.cumsum(),
         'Births': sim.results.pph.births.cumsum(),
         'CBR': sim.results.pph.cbr,
-        'Deaths': sim.results.deaths.cumulative,
+        'New Deaths': sim.results['new_deaths'],
+        'Total Deaths': sim.results['cum_deaths'],
         'Maternal Deaths': sim.results.pph.maternal_deaths.cumsum(),
         'Infant Deaths': sim.results.pph.infant_deaths.cumsum(),
     })
@@ -150,7 +151,7 @@ def run_scenarios(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
             for cov in covs:
                 cfgs.append({'cov':cov, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
         T = sc.tic()
-        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents}, iterkwargs=cfgs, die=False, serial=debug)
+        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents}, iterkwargs=cfgs, die=False, serial=False) # debug
         times[f'rng={rng}'] = sc.toc(T, output=True)
 
     print('Timings:', times)
