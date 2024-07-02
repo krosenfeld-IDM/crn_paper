@@ -142,6 +142,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             fix_dates(g)
             fix_yaxis(g)
             g.figure.savefig(os.path.join(figdir, f'timeseries_{ch.replace(" ", "")}.png'), bbox_inches='tight', dpi=300)
+            g.figure.savefig(os.path.join(figdir, f'timeseries_{ch.replace(" ", "")}.pdf'), bbox_inches='tight', transparent=True)
             plt.close(g.figure)
 
 
@@ -156,6 +157,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         fix_dates(g)
         fix_yaxis(g)
         g.figure.savefig(os.path.join(figdir, f'diff_{ms}.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, f'diff_{ms}.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
 
 
@@ -181,6 +183,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.set_xlabels(f'Value - Reference on {slice_str}')
     fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'slice.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
     facet_kws['sharey'] = False
@@ -191,6 +194,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.set_xlabels(f'Value - Reference on {slice_str}')
     fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'slice2.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'slice2.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
 
@@ -217,6 +221,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     #fix_axis_labels(g, postfix=f'as of {slice_str}')
     fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'cor_slice.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'cor_slice.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
     # Share y from here on
@@ -232,7 +237,8 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     fix_dates(g)
     fix_yaxis(g)
     fix_axis_labels(g, prefix='Difference in\n')
-    g.figure.savefig(os.path.join(figdir, f'diff.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'diff.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'diff.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
 
@@ -245,16 +251,20 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
 
         corf.fillna(value=1.0, inplace=True) # Assume NaNs are perfect correlation
 
+        fig_kw = kw.copy()
+        fig_kw['aspect'] = 1.7
         g = sns.relplot(kind='line', data=corf, x='date', y='Pearson', hue='rng', hue_order=rngs,
                 col=var1, col_order=var1_ord, row=var2, row_order=var2_ord, style='rng', style_order=rngs,
-                palette=rng_colors, errorbar='sd', lw=2, facet_kws=fkw, **kw)
+                palette=rng_colors, errorbar='sd', lw=2, facet_kws=fkw, **fig_kw)
         g.set_titles(col_template='{col_name}', row_template='{row_name}')
         g.figure.subplots_adjust(top=0.88)
         g.set_xlabels('Date')
         fix_dates(g)
         fix_yaxis(g)
         fix_axis_labels(g)
+        g.set(ylim=(0, 1))
         g.figure.savefig(os.path.join(figdir, 'cor.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'cor.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
     except Exception as e:
         print('CORRELATION OVER TIME did not work')
@@ -275,6 +285,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         fix_yaxis(g)
         #fix_axis_labels(g)
         g.figure.savefig(os.path.join(figdir, 'cor_single.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'cor_single.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
     except Exception as e:
         print('CORRELATION OVER TIME SINGLE did not work')
