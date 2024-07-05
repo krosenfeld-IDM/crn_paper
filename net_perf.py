@@ -4,9 +4,19 @@ import pandas as pd
 import seaborn as sns
 import sciris as sc
 import os
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
 
-n_steps = 50
-n_seeds = 25
+# Avoid numpy multithreading
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+n_steps = 25
+n_seeds = 10
 net_types = ['Disk', 'ErdosRenyi', 'Embedding']
 rngs = ['centralized', 'multi']
 n_agents = np.logspace(1, 5, 20) # np.log10(10000)
@@ -58,8 +68,15 @@ for rng in rngs:
     for net_type in net_types:
         for n in n_agents:
             net = get_net(net_type, n)
-            seeds = n_seeds if n < 10_000 else n_seeds // 5 # Fewer seeds when many agents
-            steps = n_steps if n < 10_000 else n_steps // 5 # Fewer steps when many agents
+
+            seeds = n_seeds
+            steps = n_steps
+            if n >= 10_000:
+                seeds = n_seeds // 5 # Fewer seeds when many agents
+                steps = n_steps // 5 # Fewer steps when many agents
+                if net_type == 'Embedding':
+                    continue # Skip Embedding over 10k agents
+
             for rs in range(seeds):
                 cfgs.append({'n_agents':n, 'n_steps':n_steps, 'network':net, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
     results += sc.parallelize(run_network, iterkwargs=cfgs, die=True, serial=False)
@@ -70,7 +87,7 @@ df.to_csv(os.path.join(figdir, 'perf.csv'))
 dfm = pd.melt(df, id_vars=['Network', 'Num Agents', 'Generator'], var_name='Channel', value_name='Result')
 
 col_order = ['Time per Step']
-g = sns.relplot(kind='line', data=dfm, col='Channel', col_order=col_order, hue='Network', style='Generator', x='Num Agents', y='Result', facet_kws={'sharey':False}, aspect=1.7)
+g = sns.relplot(kind='line', data=dfm, col='Channel', col_order=col_order, hue='Network', style='Generator', x='Num Agents', y='Result', facet_kws={'sharey':False}, height=3, aspect=1.7)
 g.set(xscale='log', yscale='log')
 
-sc.savefig(os.path.join(figdir, 'perf.pdf'), g.figure)
+sc.savefig(os.path.join(figdir, 'perf.pdf'), g.figure, bbox_inches='tight', transparent=True)

@@ -18,12 +18,12 @@ warnings.filterwarnings("ignore", "overflow encountered in scalar multiply")
 
 np.random.seed(0) # Shouldn't matter, but for reproducibility
  
-n = 4 # Number of nodes
+n = 6 # Number of nodes
 
-reps = 1_000_000
+reps = 2_000_000
 edge_prob = 0.5 # Edge probability
 
-figdir = os.path.join(os.getcwd(), 'figs', 'ERCorr')
+figdir = os.path.join(os.getcwd(), 'figs', f'ERCorr_n{n}_reps{reps}')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 # load the library
@@ -122,6 +122,9 @@ df.columns = [
 
 # Manipulate results
 df.reset_index(inplace=True)
+
+df.to_csv( os.path.join(figdir, 'results.csv') )
+
 dfm = df.melt(id_vars='Graph Hash', var_name='Method', value_name='Count')
 
 # Statistical test

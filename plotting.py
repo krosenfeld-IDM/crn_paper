@@ -291,6 +291,28 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         print('CORRELATION OVER TIME SINGLE did not work')
         print(e)
 
+    #%% CORRELATION OVER TIME SINGLE PANEL v2
+    try:
+        g = sns.relplot(kind='line', data=corf, x='date', y='Pearson',
+                #col=var2, col_order=var2_ord,
+                hue=var1, hue_order=var1_ord,
+                #style='rng', style_order=rngs,
+                col='rng', col_order=rngs,
+                style=var2, style_order=var2_ord,
+                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.figure.subplots_adjust(top=0.88)
+        g.set_xlabels('Date')
+        fix_dates(g)
+        fix_yaxis(g)
+        #fix_axis_labels(g)
+        g.figure.savefig(os.path.join(figdir, 'cor_single_v2.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'cor_single_v2.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+    except Exception as e:
+        print('CORRELATION OVER TIME SINGLE did not work')
+        print(e)
+
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))
 
     return
