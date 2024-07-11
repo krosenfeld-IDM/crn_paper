@@ -75,7 +75,7 @@ class Graph():
         self.draw_nodes(lambda n: not n['dead'] and not n['female'], **kwargs)
 
         nx.draw_networkx_edges(self.graph, pos=pos, ax=ax)
-        nx.draw_networkx_labels(self.graph, labels={i:int(a['cd4']) for i,a in self.graph.nodes.data()}, font_size=8, pos=pos, ax=ax)
+        nx.draw_networkx_labels(self.graph, labels={i:int(a['uid']) for i,a in self.graph.nodes.data()}, font_size=8, pos=pos, ax=ax)
         if edge_labels:
             nx.draw_networkx_edge_labels(self.graph, edge_labels={(i,j): int(a['dur']) for i,j,a in self.graph.edges.data()}, font_size=8, pos=pos, ax=ax)
         return
@@ -90,19 +90,20 @@ class GraphAnalyzer(ss.Analyzer):
         self.graphs = {}
         return
 
-    def initialize(self, sim):
+    def init_post(self):
         self.initialized = True
-        self.apply(sim, init=True)
+        self.apply(self.sim, init=True)
         return
 
     def apply(self, sim, init=False):
         nodes = pd.DataFrame({
-            'age': sim.people.age.values,
-            'female': sim.people.female.values,
-            'dead': sim.people.dead.values,
-            'hiv': sim.people.hiv.infected.values,
-            'on_art': sim.people.hiv.on_art.values,
-            'cd4': sim.people.hiv.cd4.values,
+            'uid': sim.people.uid.raw,
+            'age': sim.people.age.raw,
+            'female': sim.people.female.raw,
+            'dead': ~sim.people.alive.raw,
+            'hiv': sim.people.hiv.infected.raw,
+            'on_art': sim.people.hiv.on_art.raw,
+            'cd4': sim.people.hiv.cd4.raw,
         })
 
         edges = sim.networks[network.lower()].to_df()
@@ -111,8 +112,8 @@ class GraphAnalyzer(ss.Analyzer):
         self.graphs[idx] = Graph(nodes, edges)
         return
 
-    def finalize(self, sim):
-        super().finalize(sim)
+    def finalize(self):
+        super().finalize()
         return
 
 
@@ -126,6 +127,7 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
         'beta': {network: [0.3, 0.25], 'Maternal': [0.2, 0]},
         'init_prev': 0.25,
         'art_efficacy': 0.96,
+        'p_death': 0.02, # Scale deaths down from default of 0.05
     }
     hiv = ss.HIV(hiv_pars)
 
@@ -133,13 +135,13 @@ def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
 
     pars = {
         'start': 1980,
-        'end': 2020,
-        'remove_dead': False, # So we can see who dies, sim results should not change with True
+        'end': 2050,
+        'dt': 3/12,
         'interventions': [art] if intervention else [],
         'rand_seed': rand_seed,
         'analyzers': [GraphAnalyzer()] if analyze else [],
     }
-    sim = ss.Sim(people=ppl, diseases=[hiv], networks=networks, demographics=[ss.Pregnancy(fertility_rate=20), ss.Deaths(death_rate=10)], pars=pars, label=lbl)
+    sim = ss.Sim(people=ppl, diseases=[hiv], networks=networks, demographics=[ss.Pregnancy(fertility_rate=60), ss.Deaths(death_rate=20)], pars=pars, label=lbl)
     #sim.initialize()
 
     # Infect every other person, useful for exploration in conjunction with init_prev=0
@@ -264,29 +266,41 @@ def plot_ts():
 
 def analyze_people(sim):
     p = sim.people
-    ever_alive = ss.false(np.isnan(p.age))
-    years_lived = np.full(len(p), sim.ti+1) # Actually +1 dt here, I think
-    years_lived[p.dead] = p.ti_dead[p.dead]
-    years_lived = years_lived[ever_alive] # Trim, could be more efficient
-    age_initial = p.age[ever_alive].values - years_lived
-    age_initial = age_initial.astype(np.float32) # For better hash comparability, there are small differences at float64
+    ever_alive = p.uid.raw #Probably doesn't work if births!
+
+    last_year = np.full(len(ever_alive), sim.year)
+    dead = ~p.alive.raw
+    last_year[dead] = sim.yearvec[p.ti_dead.raw[dead].astype(int)]
+    first_year = np.maximum(sim.yearvec[0], last_year - p.age.raw)
+
+    infected = np.isfinite(p.hiv.ti_infected.raw)
+    infected_year = np.full(ever_alive.shape, np.nan)
+    infected_year[infected] = sim.yearvec[p.hiv.ti_infected.raw[infected].astype(int)]
+
+    art = np.isfinite(p.hiv.ti_art.raw)
+    art_year = np.full(ever_alive.shape, np.nan)
+    art_year[art] = sim.yearvec[p.hiv.ti_art.raw[art].astype(int)]
+
+    dead = np.isfinite(p.hiv.ti_dead.raw)
+    dead_year = np.full(ever_alive.shape, np.nan)
+    dead_year[dead] = sim.yearvec[p.hiv.ti_dead.raw[dead].astype(int)]
 
     df = pd.DataFrame({
-        'id': [hash((p.slot[i], age_initial[i], p.female[i])) for i in ever_alive], # if slicing, don't need ._view,
-        'age_initial': age_initial,
-        'years_lived': years_lived,
-        'ti_infected': p.hiv.ti_infected[ever_alive].values,
-        'ti_art': p.hiv.ti_art[ever_alive].values,
-        'ti_dead': p.ti_dead[ever_alive].values,
+        'id': [hash((p.slot[i], first_year[i], p.female[i])) for i in ever_alive], # if slicing, don't need ._view,
+        'first_year': first_year,
+        'last_year': last_year,
+        'infected_year': infected_year,
+        'art_year': art_year,
+        'dead_year': dead_year,
 
         # Useful for debugging, but not needed for plotting
-        'slot': p.slot[ever_alive].values,
-        'female': p.female[ever_alive].values,
+        'slot': p.slot.raw,
+        'female': p.female.raw,
     })
-    df.replace(to_replace=ss.INT_NAN, value=np.nan, inplace=True)
-    df['age_infected'] = df['age_initial'] + df['ti_infected']
-    df['age_art']      = df['age_initial'] + df['ti_art']
-    df['age_dead']     = df['age_initial'] + df['ti_dead']
+    #df.replace(to_replace=ss.INT_NAN, value=np.nan, inplace=True)
+    #df['age_infected'] = df['age_initial'] + df['ti_infected']
+    #df['age_art']      = df['age_initial'] + df['ti_art']
+    #df['age_dead']     = df['age_initial'] + df['ti_dead']
     return df
 
 
@@ -306,38 +320,39 @@ def plot_longitudinal(sim1, sim2):
     fig, ax = plt.subplots(figsize=(10,6))
 
     # For the legend:
-    plt.barh(y=0, left=0, width=1e-6, color='k', height=height, label='Alive')
-    plt.barh(y=0, left=0, width=1e-6, color='m', height=height, label='Infected before birth')
-    plt.barh(y=0, left=0, width=1e-6, color='r', height=height, label='Infected')
-    plt.barh(y=0, left=0, width=1e-6, color='g', height=height, label='ART')
-    plt.scatter(y=0, x=0, color='c', marker='|', label='Death')
+    fy = df['first_year'].min()
+    plt.barh(y=0, left=fy, width=1e-6, color='k', height=height, label='Alive')
+    plt.barh(y=0, left=fy, width=1e-6, color='m', height=height, label='Infected before birth')
+    plt.barh(y=0, left=fy, width=1e-6, color='r', height=height, label='Infected')
+    plt.barh(y=0, left=fy, width=1e-6, color='g', height=height, label='ART')
+    plt.scatter(y=0, x=fy, color='c', marker='|', label='Death')
 
     for n, (lbl, data) in enumerate(df.groupby('sim')):
         yp = data['ypos'] + n/(N+1) # Leave space
 
-        ti_initial = np.maximum(-data['age_initial'], 0)
-        ti_final = data['ti_dead'].fillna(40)
-        plt.barh(y=yp, left=ti_initial, width=ti_final - ti_initial, color='k', height=height)
+        #ti_initial = np.maximum(-data['age_initial'], 0)
+        #ti_final = data['ti_dead'].fillna(40)
+        #plt.barh(y=yp, left=ti_initial, width=ti_final - ti_initial, color='k', height=height)
+        plt.barh(y=yp, left=data['first_year'], width=data['last_year'] - data['first_year'], color='k', height=height)
 
-        # Infected before birth
-        vertical = data['age_infected']<0
-        plt.barh(y=yp[vertical], left=data.loc[vertical]['ti_infected'], width=ti_final[vertical]-data.loc[vertical]['ti_infected'], color='m', height=height)
 
         # Infected
-        infected = ~data['ti_infected'].isna()
-        ai = data.loc[infected]['age_infected'].values # Adjust for vertical transmission
-        ai[~(ai<0)] = 0
-        plt.barh(y=yp[infected], left=data.loc[infected]['ti_infected']-ai, width=ti_final[infected]-data.loc[infected]['ti_infected']+ai, color='r', height=height)
+        infected = ~data['infected_year'].isna()
+        plt.barh(y=yp[infected], left=data.loc[infected]['infected_year'], width=data.loc[infected]['last_year'] - data.loc[infected]['infected_year'], color='r', height=height)
+
+        # Infected before birth
+        vertical = data['infected_year'] < data['first_year']
+        plt.barh(y=yp[vertical], left=data.loc[vertical]['infected_year'], width=data.loc[vertical]['first_year'] - data.loc[vertical]['infected_year'], color='m', height=height)
 
         # ART
-        art = ~data['ti_art'].isna()
-        plt.barh(y=yp[art], left=data.loc[art]['ti_art'], width=ti_final[art]-data.loc[art]['ti_art'], color='g', height=height)
+        art = ~data['art_year'].isna()
+        plt.barh(y=yp[art], left=data.loc[art]['art_year'], width=data.loc[art]['last_year'] - data.loc[art]['art_year'], color='g', height=height)
 
         # Dead
-        dead = ~data['ti_dead'].isna()
-        plt.scatter(y=yp[dead], x=data.loc[dead]['ti_dead'], color='c', marker='|')
+        dead = ~data['dead_year'].isna()
+        plt.scatter(y=yp[dead], x=data.loc[dead]['dead_year'], color='c', marker='|')
 
-    ax.set_xlabel('Age (years)')
+    ax.set_xlabel('Year')
     ax.set_ylabel('UID')
     ax.legend()
 

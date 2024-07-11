@@ -8,6 +8,10 @@ import hashlib
 import sciris as sc
 import os
 import ctypes
+import scipy.stats as sps
+
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
 
 
 from starsim.utils import combine_rands
@@ -18,7 +22,7 @@ warnings.filterwarnings("ignore", "overflow encountered in scalar multiply")
 
 np.random.seed(0) # Shouldn't matter, but for reproducibility
  
-n = 6 # Number of nodes
+n = 6 #6 # Number of nodes, 4 or 6
 
 reps = 2_000_000
 edge_prob = 0.5 # Edge probability
@@ -127,9 +131,6 @@ df.to_csv( os.path.join(figdir, 'results.csv') )
 
 dfm = df.melt(id_vars='Graph Hash', var_name='Method', value_name='Count')
 
-# Statistical test
-import scipy.stats as sps
-
 chisq = []
 f_exp = df['True Random']
 for method in df.columns[2:]:
@@ -144,7 +145,7 @@ fig, ax = plt.subplots(figsize=(8,5))
 g = sns.barplot(data=dfm, x='Graph Hash', y='Count', hue='Method', ax=ax)
 plt.xticks(rotation=90)
 g.figure.tight_layout()
-g.figure.savefig(os.path.join(figdir, 'graph_hist.png'), bbox_inches='tight', dpi=300)
+g.figure.savefig(os.path.join(figdir, 'graph_hist.pdf'), bbox_inches='tight', transparent=True)
 plt.close(g.figure)
 
 txc = tx[0].copy()
