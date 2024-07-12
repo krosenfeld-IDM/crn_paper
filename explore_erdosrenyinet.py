@@ -22,9 +22,9 @@ warnings.filterwarnings("ignore", "overflow encountered in scalar multiply")
 
 np.random.seed(0) # Shouldn't matter, but for reproducibility
  
-n = 6 #6 # Number of nodes, 4 or 6
+n = 4 #6 # Number of nodes, 4 or 6
 
-reps = 2_000_000
+reps = 1_000_001
 edge_prob = 0.5 # Edge probability
 
 figdir = os.path.join(os.getcwd(), 'figs', f'ERCorr_n{n}_reps{reps}')
@@ -75,8 +75,10 @@ def middle_sq():
     return n1[edge], n2[edge]
 
 def xor():
-    r1 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
-    r2 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
+    #r1 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
+    #r2 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
+    r1 = np.random.mtrand._rand._bit_generator.random_raw(n)
+    r2 = np.random.mtrand._rand._bit_generator.random_raw(n)
 
     n1, n2 = np.triu_indices(n=n, k=1)
     r = combine_rands(r1[n1], r2[n2])
@@ -108,8 +110,8 @@ def make_graph(trans_fn):
 # Do transmissions via each method in parallel
 results = sc.parallelize(make_graph, iterkwargs=[
     {'trans_fn':random},
-    {'trans_fn':modulo},
-    {'trans_fn':middle_sq},
+    #{'trans_fn':modulo},
+    #{'trans_fn':middle_sq},
     {'trans_fn':xor}
     ], kwargs=None, die=True, serial=False)
 tx, cnt, times = zip(*results)
@@ -119,8 +121,8 @@ df = pd.concat(cnt, axis=1) \
     .astype(int)
 df.columns = [
     'True Random',
-    'Modulo',
-    'Middle Square',
+    #'Modulo',
+    #'Middle Square',
     'XOR'
 ]
 
