@@ -248,10 +248,8 @@ def sweep_n(n_seeds=default_n_rand_seeds):
     if not debug:
         n_agents_levels += [10_000]#, 100_000]
 
-    #cov_levels = [0, 0.15] # Must include 0 as that's the reference level
-    efficacy = 0.3
+    efficacy = 0.7
     cov_levels = [0, 0.05, 0.90] # Must include 0 as that's the reference level
-    #efficacy = 0.8
 
     results = []
     times = {}
@@ -343,10 +341,11 @@ if __name__ == '__main__':
                 print(f'Unable to read {fn}')
     else:
         print('Running scenarios')
-        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
-        #results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
         results['SIR_n'] = sweep_n(n_seeds=args.s)
-        #results['SIR_audit'] = audit()
+        if False:
+            results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+            results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
+            results['SIR_audit'] = audit()
 
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')

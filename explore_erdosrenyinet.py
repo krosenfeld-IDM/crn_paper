@@ -24,7 +24,7 @@ np.random.seed(0) # Shouldn't matter, but for reproducibility
  
 n = 4 #6 # Number of nodes, 4 or 6
 
-reps = 1_000_001
+reps = 2_000_000
 edge_prob = 0.5 # Edge probability
 
 figdir = os.path.join(os.getcwd(), 'figs', f'ERCorr_n{n}_reps{reps}')
@@ -74,11 +74,13 @@ def middle_sq():
 
     return n1[edge], n2[edge]
 
+g = np.random.PCG64DXSM()
 def xor():
-    #r1 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
-    #r2 = np.random.randint(low=np.iinfo(np.int64).min, high=np.iinfo(np.int64).max, dtype=np.int64, size=n)
-    r1 = np.random.mtrand._rand._bit_generator.random_raw(n)
-    r2 = np.random.mtrand._rand._bit_generator.random_raw(n)
+    #r1 = np.random.mtrand._rand.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
+    #r2 = np.random.mtrand._rand.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
+
+    r1 = g.random_raw(n)
+    r2 = g.random_raw(n)
 
     n1, n2 = np.triu_indices(n=n, k=1)
     r = combine_rands(r1[n1], r2[n2])
