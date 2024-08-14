@@ -92,6 +92,10 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     cor.name = 'Pearson'
     #cor.replace([np.inf, -np.inf, np.nan], 1, inplace=True)
 
+    # Standard error
+    se = mrg.reset_index().groupby(id_vars, observed=True)[['Value', 'Value_ref']].apply(lambda x: np.std(x['Value_ref']-x['Value'], ddof=1) / np.sqrt(len(x)))
+    se.name = 'Standard Error'
+
     kw = {'height': 3, 'aspect': 1.4}
     fkw = {'sharey': 'row', 'sharex': 'col', 'margin_titles': True} # facet_kws={**fkw, **{'sharey':'row'}}
 
@@ -109,7 +113,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
 
     
     #%% TIMESERIES
-
     def plot_median(data, **kws):
         ax = plt.gca()
         sns.lineplot(data=data, x='date', y='Value', hue=var1, hue_order=var1_ord,
@@ -197,6 +200,19 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.figure.savefig(os.path.join(figdir, 'slice2.pdf'), bbox_inches='tight', transparent=True)
     plt.close(g.figure)
 
+    '''
+    ## TEMP - plot two slice years of a single channel
+    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='date', x='Value - Reference',
+        row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='brg', **kw)
+    g.set_titles(col_template='{col_name}', row_template='{row_name}')
+    #g.set_xlabels(f'Value - Reference on {slice_str}')
+    fix_yaxis(g)
+    g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
+    g.figure.savefig(os.path.join(figdir, 'slice.pdf'), bbox_inches='tight', transparent=True)
+    plt.close(g.figure)
+    ##
+    '''
+
 
     #%% COR SCATTER AT SLICE TIME
     ctf = mtf.reset_index('rand_seed')
@@ -270,7 +286,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         print('CORRELATION OVER TIME did not work')
         print(e)
 
-
     #%% CORRELATION OVER TIME SINGLE PANEL
     try:
         g = sns.relplot(kind='line', data=corf, x='date', y='Pearson',
@@ -310,7 +325,106 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.figure.savefig(os.path.join(figdir, 'cor_single_v2.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
     except Exception as e:
-        print('CORRELATION OVER TIME SINGLE did not work')
+        print('CORRELATION OVER TIME SINGLE v2 did not work')
+        print(e)
+
+
+    if isinstance(se, pd.Series):
+        sef = se.to_frame()
+    else:
+        sef = se
+
+    #%% SE OVER TIME SINGLE PANEL
+    try:
+        g = sns.relplot(kind='line', data=sef, x='date', y='Standard Error',
+                #col=var2, col_order=var2_ord,
+                hue=var1, hue_order=var1_ord,
+                #style='rng', style_order=rngs,
+                col='rng', col_order=rngs,
+                style=var2, style_order=var2_ord,
+                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.figure.subplots_adjust(top=0.88)
+        g.set_xlabels('Date')
+        fix_dates(g)
+        fix_yaxis(g)
+        #fix_axis_labels(g)
+        g.figure.savefig(os.path.join(figdir, 'se_single_v2.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'se_single_v2.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+    except Exception as e:
+        print('SE OVER TIME SINGLE did not work')
+        print(e)
+
+    #%% SE OVER vs REPS at TF
+    def se_by_rep(x, trials=250):
+        nreps = np.arange(10, len(x))
+        ret = np.zeros(len(nreps))
+        for idx, nr in enumerate(nreps):
+            # Mean over trials, bootstrap
+            s = 0
+            for _ in range(trials):
+                inds = np.random.choice(len(x), size=nr, replace=True) # Replace with bootstrap sampling
+                s += np.std(x['Value_ref'].iloc[inds]-x['Value'].iloc[inds], ddof=1) / np.sqrt(nr)
+            ret[idx] = s / trials
+            #ret[idx] = np.std(x['Value_ref'][:nr]-x['Value'][:nr], ddof=1) / np.sqrt(nr)
+
+        s = pd.Series(ret, index=pd.Index(nreps, name='Num Reps'))
+        return s
+        
+    # Standard error over reps at final time
+    id_vars = [cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
+    print('Running bootstraps, hang tight!')
+    ser = mtf.reset_index().groupby(id_vars, observed=True)[['rand_seed', 'Value', 'Value_ref']].apply(se_by_rep).stack()
+    ser.name = 'Standard Error'
+
+    if isinstance(ser, pd.Series):
+        serf = ser.to_frame()
+    else:
+        serf = ser
+    try:
+        g = sns.relplot(kind='line', data=serf, x='Num Reps', y='Standard Error',
+                #col=var2, col_order=var2_ord,
+                hue=var1, hue_order=var1_ord,
+                #style='rng', style_order=rngs,
+                col='rng', col_order=rngs,
+                row='channel',
+                style=var2, style_order=var2_ord,
+                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.figure.subplots_adjust(top=0.88)
+        g.set_xlabels('Number of Replicates')
+        g.set(yscale="log")
+        #fix_yaxis(g)
+        #fix_axis_labels(g)
+        g.figure.savefig(os.path.join(figdir, 'se_final.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'se_final.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+
+        serf.to_csv(os.path.join(figdir, 'se_final.csv'))
+        idx_cols = list(set([var2, 'Num Reps', var1, 'channel']))
+        sdf = serf.reset_index().pivot(columns='rng', index=idx_cols, values='Standard Error')
+        sdf['Ratio'] = sdf['Centralized'] / sdf['CRN']
+
+        if var2 == 'channel':
+            var2 = var2_ord=None
+        g = sns.relplot(kind='line', data=sdf, x='Num Reps', y='Ratio',
+                #col=var2, col_order=var2_ord,
+                hue=var1, hue_order=var1_ord,
+                #style='rng', style_order=rngs,
+                ##col='rng', col_order=rngs,
+                row='channel',
+                style=var2, style_order=var2_ord,
+                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+        g.figure.savefig(os.path.join(figdir, 'sd_ratio_final.pdf'), bbox_inches='tight', transparent=True)
+
+        n_reps = sdf.index.get_level_values('Num Reps').max()
+        ratio = sdf.xs(n_reps, level='Num Reps')
+        ratio.to_csv(os.path.join(figdir, 'se_ratio.csv'))
+
+
+    except Exception as e:
+        print('SE FINAL TIME SINGLE did not work')
         print(e)
 
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))

@@ -347,6 +347,10 @@ if __name__ == '__main__':
             results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
             results['SIR_audit'] = audit()
 
+    if 'SIR_n' in results:
+        figdir = os.path.join(basedir, 'SIR_n' if not debug else 'SIR_n-debug')
+        plot_scenarios(results['SIR_n'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
+
     if 'SIR_network' in results:
         figdir = os.path.join(basedir, 'SIR_network' if not debug else 'SIR_network-debug')
         plot_scenarios(results['SIR_network'], figdir, channels=['Recovered'], var1='network', var2='cov')
@@ -354,10 +358,6 @@ if __name__ == '__main__':
     if 'SIR_coverage' in results:
         figdir = os.path.join(basedir, 'SIR_coverage' if not debug else 'SIR_coverage-debug')
         plot_scenarios(results['SIR_coverage'], figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
-
-    if 'SIR_n' in results:
-        figdir = os.path.join(basedir, 'SIR_n' if not debug else 'SIR_n-debug')
-        plot_scenarios(results['SIR_n'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
 
     if 'SIR_audit' in results:
         figdir = os.path.join(basedir, 'SIR_audit' if not debug else 'SIR_audit-debug')

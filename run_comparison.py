@@ -12,10 +12,17 @@ import sys
 import os
 import argparse
 import sciris as sc
+from run_HIV import run_sim
 
-default_n_agents = 50
+sc.options(interactive=True)
+
+default_n_agents = 100
 # Three choices for network here, note that only the first two are stream safe
-network = ['stable_monogamy', 'EmbeddingNet', 'hpv_network'][1]
+#net_idx = 1
+#network = ['stable_monogamy', 'EmbeddingNet', 'hpv_network'][net_idx]
+network = 'EmbeddingNet'
+art_eff = 1
+#net_pars = [None, dict(duration=ss.weibull(c=1.5, scale=10)), None][net_idx]
 
 do_plot_graph = True
 # Several choices for how to layout the graph when plotting
@@ -49,113 +56,11 @@ class stable_monogamy(ss.SexualNetwork):
         self.contacts.beta = np.ones(n_edges)
         return
 
-class Graph():
-    def __init__(self, nodes, edges):
-        self.graph = nx.from_pandas_edgelist(df=edges, source='p1', target='p2', edge_attr=True)
-        self.graph.add_nodes_from(nodes.index)
-        nx.set_node_attributes(self.graph, nodes.transpose().to_dict())
-        return
-
-    def draw_nodes(self, filter, pos, ax, **kwargs):
-        inds = [i for i,n in self.graph.nodes.data() if filter(n)]
-        nc = ['red' if nd['hiv'] else 'lightgray' for i, nd in self.graph.nodes.data() if i in inds]
-        ec = ['green' if nd['on_art'] else 'black' for i, nd in self.graph.nodes.data() if i in inds]
-        if inds:
-            nx.draw_networkx_nodes(self.graph, nodelist=inds, pos=pos, ax=ax, node_color=nc, edgecolors=ec, **kwargs)
-        return
-
-    def plot(self, pos, edge_labels=False, ax=None):
-        kwargs = dict(node_shape='x', node_size=250, linewidths=2, ax=ax, pos=pos)
-        self.draw_nodes(lambda n: n['dead'], **kwargs)
-
-        kwargs['node_shape'] = 'o'
-        self.draw_nodes(lambda n: not n['dead'] and n['female'], **kwargs)
-        
-        kwargs['node_shape'] = 's'
-        self.draw_nodes(lambda n: not n['dead'] and not n['female'], **kwargs)
-
-        nx.draw_networkx_edges(self.graph, pos=pos, ax=ax)
-        nx.draw_networkx_labels(self.graph, labels={i:int(a['uid']) for i,a in self.graph.nodes.data()}, font_size=8, pos=pos, ax=ax)
-        if edge_labels:
-            nx.draw_networkx_edge_labels(self.graph, edge_labels={(i,j): int(a['dur']) for i,j,a in self.graph.edges.data()}, font_size=8, pos=pos, ax=ax)
-        return
-
-
-class GraphAnalyzer(ss.Analyzer):
-    ''' Simple analyzer to assess if random streams are working '''
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs) # Initialize the Analyzer object
-
-        self.graphs = {}
-        return
-
-    def init_post(self):
-        self.initialized = True
-        self.apply(self.sim, init=True)
-        return
-
-    def apply(self, sim, init=False):
-        nodes = pd.DataFrame({
-            'uid': sim.people.uid.raw,
-            'age': sim.people.age.raw,
-            'female': sim.people.female.raw,
-            'dead': ~sim.people.alive.raw,
-            'hiv': sim.people.hiv.infected.raw,
-            'on_art': sim.people.hiv.on_art.raw,
-            'cd4': sim.people.hiv.cd4.raw,
-        })
-
-        edges = sim.networks[network.lower()].to_df()
-
-        idx = sim.ti if not init else -1
-        self.graphs[idx] = Graph(nodes, edges)
-        return
-
-    def finalize(self):
-        super().finalize()
-        return
-
-
-def run_sim(n=25, rand_seed=0, intervention=False, analyze=False, lbl=None):
-    ppl = ss.People(n)
-
-    net_class = getattr(ss, network)
-    networks = [net_class(), ss.MaternalNet()]
-
-    hiv_pars = {
-        'beta': {network: [0.3, 0.25], 'Maternal': [0.2, 0]},
-        'init_prev': 0.25,
-        'art_efficacy': 0.96,
-        'p_death': 0.02, # Scale deaths down from default of 0.05
-    }
-    hiv = ss.HIV(hiv_pars)
-
-    art = ss.hiv.ART(0, 0.4, art_delay=5) # 40% coverage from day 0
-
-    pars = {
-        'start': 1980,
-        'end': 2050,
-        'dt': 3/12,
-        'interventions': [art] if intervention else [],
-        'rand_seed': rand_seed,
-        'analyzers': [GraphAnalyzer()] if analyze else [],
-    }
-    sim = ss.Sim(people=ppl, diseases=[hiv], networks=networks, demographics=[ss.Pregnancy(fertility_rate=60), ss.Deaths(death_rate=20)], pars=pars, label=lbl)
-    #sim.initialize()
-
-    # Infect every other person, useful for exploration in conjunction with init_prev=0
-    #sim.diseases['hiv'].set_prognoses(sim, np.arange(0,n,2), from_uids=None)
-
-    sim.run()
-
-    return sim
-
 
 def run_scenario(n=10, rand_seed=0, analyze=True):
     sims = sc.parallelize(run_sim,
-                          kwargs={'n':n, 'analyze': analyze, 'rand_seed': rand_seed},
-                          iterkwargs=[{'intervention':False, 'lbl':'Baseline'}, {'intervention':True, 'lbl':'Intervention'}], die=False)
+                          kwargs={'n_agents':n, 'analyze': analyze, 'rand_seed': rand_seed, 'return_sim': True, 'art_eff': art_eff},
+                          iterkwargs=[{'cov':0.00, 'idx':0, 'rng':'multi'}, {'cov':0.10, 'idx':1, 'rng':'multi'}], die=False)
 
     for i, sim in enumerate(sims):
         sim.save(os.path.join(figdir, f'sim{i}.obj'))
@@ -251,14 +156,25 @@ def plot_graph(sim1, sim2):
 
 def plot_ts():
     # Plot timeseries summary
-    fig, axv = plt.subplots(2,1, sharex=True)
-    axv[0].plot(sim1.tivec, sim1.results.hiv.n_infected, label=sim1.label)
-    axv[0].plot(sim2.tivec, sim2.results.hiv.n_infected, ls=':', label=sim2.label)
-    axv[0].set_title('HIV number of infections')
+    fig, axv = plt.subplots(2,2, sharex=True)
+    #axv[0,0].plot(sim1.tivec, sim1.results.hiv.n_infected, label=sim1.label)
+    #axv[0,0].plot(sim2.tivec, sim2.results.hiv.n_infected, ls=':', label=sim2.label)
+    #axv[0,0].set_title('HIV number of infections')
+    axv[0,0].plot(sim1.tivec, sim1.results.hiv.art_coverage, label=sim1.label)
+    axv[0,0].plot(sim2.tivec, sim2.results.hiv.art_coverage, ls=':', label=sim2.label)
+    axv[0,0].set_title('ART Coverage')
 
-    axv[1].plot(sim1.tivec, sim1.results.hiv.new_deaths, label=sim1.label)
-    axv[1].plot(sim2.tivec, sim2.results.hiv.new_deaths, ls=':', label=sim2.label)
-    axv[1].set_title('HIV Deaths')
+    axv[0,1].plot(sim1.tivec, sim1.results.hiv.cum_infections, label=sim1.label)
+    axv[0,1].plot(sim2.tivec, sim2.results.hiv.cum_infections, ls=':', label=sim2.label)
+    axv[0,1].set_title('Cumulative HIV infections')
+
+    axv[1,0].plot(sim1.tivec, sim1.results.hiv.new_deaths.cumsum(), label=sim1.label)
+    axv[1,0].plot(sim2.tivec, sim2.results.hiv.new_deaths.cumsum(), ls=':', label=sim2.label)
+    axv[1,0].set_title('Cumulative HIV Deaths')
+
+    axv[1,1].plot(sim1.tivec, sim1.results.hiv.prevalence, label=sim1.label)
+    axv[1,1].plot(sim2.tivec, sim2.results.hiv.prevalence, ls=':', label=sim2.label)
+    axv[1,1].set_title('HIV Prevalence')
 
     plt.legend()
     return fig
@@ -266,24 +182,24 @@ def plot_ts():
 
 def analyze_people(sim):
     p = sim.people
-    ever_alive = p.uid.raw #Probably doesn't work if births!
+    ever_alive = np.argwhere(np.isfinite(sim.people.age.raw)).flatten()
 
     last_year = np.full(len(ever_alive), sim.year)
-    dead = ~p.alive.raw
-    last_year[dead] = sim.yearvec[p.ti_dead.raw[dead].astype(int)]
-    first_year = np.maximum(sim.yearvec[0], last_year - p.age.raw)
+    dead = ~p.alive.raw[ever_alive]
+    last_year[dead] = sim.yearvec[p.ti_dead.raw[ever_alive][dead].astype(int)]
+    first_year = np.maximum(sim.yearvec[0], last_year - p.age.raw[ever_alive])
 
-    infected = np.isfinite(p.hiv.ti_infected.raw)
+    infected = np.isfinite(p.hiv.ti_infected.raw[ever_alive])
     infected_year = np.full(ever_alive.shape, np.nan)
-    infected_year[infected] = sim.yearvec[p.hiv.ti_infected.raw[infected].astype(int)]
+    infected_year[infected] = sim.yearvec[p.hiv.ti_infected.raw[ever_alive][infected].astype(int)]
 
-    art = np.isfinite(p.hiv.ti_art.raw)
+    art = np.isfinite(p.hiv.ti_art.raw[ever_alive])
     art_year = np.full(ever_alive.shape, np.nan)
-    art_year[art] = sim.yearvec[p.hiv.ti_art.raw[art].astype(int)]
+    art_year[art] = sim.yearvec[p.hiv.ti_art.raw[ever_alive][art].astype(int)]
 
-    dead = np.isfinite(p.hiv.ti_dead.raw)
+    dead = (p.hiv.ti_dead.raw[ever_alive] < sim.ti) # np.isfinite(p.hiv.ti_dead.raw[ever_alive])
     dead_year = np.full(ever_alive.shape, np.nan)
-    dead_year[dead] = sim.yearvec[p.hiv.ti_dead.raw[dead].astype(int)]
+    dead_year[dead] = sim.yearvec[p.hiv.ti_dead.raw[ever_alive][dead].astype(int)]
 
     df = pd.DataFrame({
         'id': [hash((p.slot[i], first_year[i], p.female[i])) for i in ever_alive], # if slicing, don't need ._view,
@@ -294,8 +210,8 @@ def analyze_people(sim):
         'dead_year': dead_year,
 
         # Useful for debugging, but not needed for plotting
-        'slot': p.slot.raw,
-        'female': p.female.raw,
+        'slot': p.slot.raw[ever_alive],
+        'female': p.female.raw[ever_alive],
     })
     #df.replace(to_replace=ss.INT_NAN, value=np.nan, inplace=True)
     #df['age_infected'] = df['age_initial'] + df['ti_infected']
@@ -360,6 +276,8 @@ def plot_longitudinal(sim1, sim2):
 
 
 if __name__ == '__main__':
+    #ss.options(_centralized = True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--plot', help='Plot from a cached CSV file', type=str)
     parser.add_argument('-n', help='Number of agents', type=int, default=default_n_agents)
