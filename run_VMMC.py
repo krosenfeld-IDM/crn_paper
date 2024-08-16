@@ -22,8 +22,8 @@ sc.options(interactive=False) # Assume not running interactively
 rngs = ['centralized', 'multi'] # 'single', 
 
 debug = False
-default_n_agents = [10_000, 10_000][debug]
-default_n_rand_seeds = [500, 3][debug]
+default_n_agents = [10_000, 1_000][debug]
+default_n_rand_seeds = [500, 15][debug]
 
 base_vmmc = 0.4
 inc_vmmc_cov_levels = [base_vmmc + 0.1] + [0] # Must include 0 as that's the baseline
@@ -183,9 +183,9 @@ if __name__ == '__main__':
         print('Running scenarios')
         results = run_scenarios(n_agents=args.n, n_seeds=args.s)
 
-    plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = -1)
+    #plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = -1)
 
-    figdir_2030 = os.path.join(figdir, '2030')
-    sc.path(figdir_2030).mkdir(parents=True, exist_ok=True)
-    plot_scenarios(results, figdir_2030, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = 2030) # slice_year = 2030
+    #figdir_2030 = os.path.join(figdir, '2030')
+    #sc.path(figdir_2030).mkdir(parents=True, exist_ok=True)
+    plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = [2025, 2040, 2070]) # slice_year = 2030
     print('Done')

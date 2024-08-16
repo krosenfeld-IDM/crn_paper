@@ -84,6 +84,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     id_vars.remove(cov)
     mrg = scn.merge(bl, on=id_vars, suffixes=('', '_ref'))
     mrg['Value - Reference'] = mrg['Value'] - mrg['Value_ref']
+    mrg['Cases Averted'] = mrg['Value_ref'] - mrg['Value']
     mrg = mrg.sort_index()
     mrg['Coverage'] = pd.Categorical(mrg['Coverage'], categories=cov_ord[:-1]) # Agh^2!
 
@@ -163,57 +164,70 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.figure.savefig(os.path.join(figdir, f'diff_{ms}.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
 
-
-    #%% SLICE AT SPECIFIC TIME
-    if slice_year < 0:
-        slice_year = d['date'].max()
-    else:
-        years = df['year'].unique()
-        dates = d['date'].unique()
-        sidx = sc.findnearest(years, slice_year)
-        slice_year = dates[sidx]
-
-    slice_str = slice_year.strftime('%b %-d, %Y')
-
+    #%% SEVERAL SLICES OVER TIME
     facet_kws = fkw.copy()
     facet_kws['sharey'] = 'row'
     facet_kws['sharex'] = 'row'
 
-    mtf = mrg.loc[slice_year]
-    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue=var1, hue_order=var1_ord, x='Value - Reference',
-            row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='Set1', **kw)
-    g.set_titles(col_template='{col_name}', row_template='{row_name}')
-    g.set_xlabels(f'Value - Reference on {slice_str}')
-    fix_yaxis(g)
-    g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
-    g.figure.savefig(os.path.join(figdir, 'slice.pdf'), bbox_inches='tight', transparent=True)
-    plt.close(g.figure)
+    mtf_years = None
+    if not np.isscalar(slice_year):
+        # Several slice years provided - assume user wants to show several slices at different times
 
-    facet_kws['sharey'] = False
-    facet_kws['sharex'] = 'col'
-    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='rng', hue_order=rngs, x='Value - Reference',
-            col=var2, row=var1, facet_kws=facet_kws, palette='Set1', **kw)
-    g.set_titles(col_template='{col_name}', row_template='{row_name}')
-    g.set_xlabels(f'Value - Reference on {slice_str}')
-    fix_yaxis(g)
-    g.figure.savefig(os.path.join(figdir, 'slice2.png'), bbox_inches='tight', dpi=300)
-    g.figure.savefig(os.path.join(figdir, 'slice2.pdf'), bbox_inches='tight', transparent=True)
-    plt.close(g.figure)
+        years = df['year'].unique()
+        dates = d['date'].unique()
+        slice_years = slice_year.copy()
+        for i, sy in enumerate(slice_year):
+            sidx = sc.findnearest(years, sy)
+            slice_years[i] = dates[sidx]
 
-    '''
-    ## TEMP - plot two slice years of a single channel
-    g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='date', x='Value - Reference',
-        row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='brg', **kw)
-    g.set_titles(col_template='{col_name}', row_template='{row_name}')
-    #g.set_xlabels(f'Value - Reference on {slice_str}')
-    fix_yaxis(g)
-    g.figure.savefig(os.path.join(figdir, 'slice.png'), bbox_inches='tight', dpi=300)
-    g.figure.savefig(os.path.join(figdir, 'slice.pdf'), bbox_inches='tight', transparent=True)
-    plt.close(g.figure)
-    ##
-    '''
+        mtf_years = mrg.loc[slice_years]
+
+        g = sns.displot(data=mtf_years.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='date', x='Cases Averted',
+            row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='brg', **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        #g.set_xlabels(f'Value - Reference on {slice_str}')
+        fix_yaxis(g)
+        g.figure.savefig(os.path.join(figdir, 'slice_years.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'slice_years.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
 
 
+
+    #%% SLICE AT SPECIFIC TIME(S)
+    slice_years = sc.promotetoarray(slice_year) 
+    for year in slice_years:
+        if year < 0:
+            year = d['date'].max()
+        else:
+            years = df['year'].unique()
+            dates = d['date'].unique()
+            sidx = sc.findnearest(years, year)
+            year = dates[sidx]
+
+        slice_str = year.strftime('%b %-d, %Y')
+
+        mtf = mrg.loc[year]
+        g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue=var1, hue_order=var1_ord, x='Value - Reference',
+                row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='Set1', **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.set_xlabels(f'Value - Reference on {slice_str}')
+        fix_yaxis(g)
+        g.figure.savefig(os.path.join(figdir, f'slice_{slice_str}.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, f'slice_{slice_str}.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+
+        facet_kws['sharey'] = False
+        facet_kws['sharex'] = 'col'
+        g = sns.displot(data=mtf.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='rng', hue_order=rngs, x='Value - Reference',
+                col=var2, row=var1, facet_kws=facet_kws, palette='Set1', **kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        g.set_xlabels(f'Value - Reference on {slice_str}')
+        fix_yaxis(g)
+        g.figure.savefig(os.path.join(figdir, f'slice2_{slice_str}.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, f'slice2_{slice_str}.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+        # NOTE: Will leave mtf at the final slice year for subsequent processing
+    
     #%% COR SCATTER AT SLICE TIME
     ctf = mtf.reset_index('rand_seed')
     if var1 in ctf.columns:
@@ -372,60 +386,66 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         s = pd.Series(ret, index=pd.Index(nreps, name='Num Reps'))
         return s
         
-    # Standard error over reps at final time
-    id_vars = [cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
-    print('Running bootstraps, hang tight!')
-    ser = mtf.reset_index().groupby(id_vars, observed=True)[['rand_seed', 'Value', 'Value_ref']].apply(se_by_rep).stack()
-    ser.name = 'Standard Error'
+    def se_reps(mtf, year, var2, var2_ord):
+        # Standard error over reps at final time
+        id_vars = [cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
+        print(f'Running bootstraps for {year}, hang tight!')
+        ser = mtf.reset_index().groupby(id_vars, observed=True)[['rand_seed', 'Value', 'Value_ref']].apply(se_by_rep).stack()
+        ser.name = 'Standard Error'
 
-    if isinstance(ser, pd.Series):
-        serf = ser.to_frame()
+        if isinstance(ser, pd.Series):
+            serf = ser.to_frame()
+        else:
+            serf = ser
+        try:
+            g = sns.relplot(kind='line', data=serf, x='Num Reps', y='Standard Error',
+                    #col=var2, col_order=var2_ord,
+                    hue=var1, hue_order=var1_ord,
+                    #style='rng', style_order=rngs,
+                    col='rng', col_order=rngs,
+                    row='channel',
+                    style=var2, style_order=var2_ord,
+                    palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+            g.set_titles(col_template='{col_name}', row_template='{row_name}')
+            g.figure.subplots_adjust(top=0.88)
+            g.set_xlabels('Number of Replicates')
+            g.set(yscale="log")
+            #fix_yaxis(g)
+            #fix_axis_labels(g)
+            g.figure.savefig(os.path.join(figdir, f'se_final_{year}.png'), bbox_inches='tight', dpi=300)
+            g.figure.savefig(os.path.join(figdir, f'se_final_{year}.pdf'), bbox_inches='tight', transparent=True)
+            plt.close(g.figure)
+
+            serf.to_csv(os.path.join(figdir, f'se_final_{year}.csv'))
+            idx_cols = list(set([var2, 'Num Reps', var1, 'channel']))
+            sdf = serf.reset_index().pivot(columns='rng', index=idx_cols, values='Standard Error')
+            sdf['Ratio'] = sdf['Centralized'] / sdf['CRN']
+
+            if var2 == 'channel':
+                var2 = var2_ord=None
+            g = sns.relplot(kind='line', data=sdf, x='Num Reps', y='Ratio',
+                    #col=var2, col_order=var2_ord,
+                    hue=var1, hue_order=var1_ord,
+                    #style='rng', style_order=rngs,
+                    ##col='rng', col_order=rngs,
+                    row='channel',
+                    style=var2, style_order=var2_ord,
+                    palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
+            g.figure.savefig(os.path.join(figdir, f'se_ratio_final_{year}.pdf'), bbox_inches='tight', transparent=True)
+
+            n_reps = sdf.index.get_level_values('Num Reps').max()
+            ratio = sdf.xs(n_reps, level='Num Reps')
+            ratio['Sim Savings'] = ratio['Ratio']**2
+            ratio.to_csv(os.path.join(figdir, f'se_ratio_{year}.csv'))
+        except Exception as e:
+            print('SE FINAL TIME SINGLE did not work')
+            print(e)
+
+    if mtf_years is not None:
+        for year, mtf in mtf_years.groupby('date'):
+            se_reps(mtf, year, var2, var2_ord)
     else:
-        serf = ser
-    try:
-        g = sns.relplot(kind='line', data=serf, x='Num Reps', y='Standard Error',
-                #col=var2, col_order=var2_ord,
-                hue=var1, hue_order=var1_ord,
-                #style='rng', style_order=rngs,
-                col='rng', col_order=rngs,
-                row='channel',
-                style=var2, style_order=var2_ord,
-                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
-        g.set_titles(col_template='{col_name}', row_template='{row_name}')
-        g.figure.subplots_adjust(top=0.88)
-        g.set_xlabels('Number of Replicates')
-        g.set(yscale="log")
-        #fix_yaxis(g)
-        #fix_axis_labels(g)
-        g.figure.savefig(os.path.join(figdir, 'se_final.png'), bbox_inches='tight', dpi=300)
-        g.figure.savefig(os.path.join(figdir, 'se_final.pdf'), bbox_inches='tight', transparent=True)
-        plt.close(g.figure)
-
-        serf.to_csv(os.path.join(figdir, 'se_final.csv'))
-        idx_cols = list(set([var2, 'Num Reps', var1, 'channel']))
-        sdf = serf.reset_index().pivot(columns='rng', index=idx_cols, values='Standard Error')
-        sdf['Ratio'] = sdf['Centralized'] / sdf['CRN']
-
-        if var2 == 'channel':
-            var2 = var2_ord=None
-        g = sns.relplot(kind='line', data=sdf, x='Num Reps', y='Ratio',
-                #col=var2, col_order=var2_ord,
-                hue=var1, hue_order=var1_ord,
-                #style='rng', style_order=rngs,
-                ##col='rng', col_order=rngs,
-                row='channel',
-                style=var2, style_order=var2_ord,
-                palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
-        g.figure.savefig(os.path.join(figdir, 'sd_ratio_final.pdf'), bbox_inches='tight', transparent=True)
-
-        n_reps = sdf.index.get_level_values('Num Reps').max()
-        ratio = sdf.xs(n_reps, level='Num Reps')
-        ratio.to_csv(os.path.join(figdir, 'se_ratio.csv'))
-
-
-    except Exception as e:
-        print('SE FINAL TIME SINGLE did not work')
-        print(e)
+        se_reps(mtf, slice_year, var2, var2_ord)
 
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))
 
