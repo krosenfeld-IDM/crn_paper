@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from plotting import plot_scenarios
 from analyzers import GraphAnalyzer
+from hiv import HIV, ART, VMMC
 
 # Suppress warning from seaborn
 import warnings
@@ -22,13 +23,13 @@ rngs = ['centralized', 'multi'] # 'single',
 
 debug = False
 default_n_agents = [10_000, 10_000][debug]
-default_n_rand_seeds = [250, 3][debug] # 1000
+default_n_rand_seeds = [500, 3][debug]
 
 base_vmmc = 0.4
 inc_vmmc_cov_levels = [base_vmmc + 0.1] + [0] # Must include 0 as that's the baseline
 vmmc_eff = 0.6
 
-figdir = os.path.join(os.getcwd(), 'figs', 'VMMC_longer' if not debug else 'VMMC-debug')
+figdir = os.path.join(os.getcwd(), 'figs', 'VMMC' if not debug else 'VMMC-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 class change_beta(ss.Intervention):
@@ -83,7 +84,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
         'VMMC_efficacy': 0.6,
     }
     hiv_pars = sc.mergedicts(default_hiv_pars, hiv_pars)
-    hiv = ss.HIV(hiv_pars)
+    hiv = HIV(hiv_pars)
 
     asfr_data = pd.read_csv('data/ssa_asfr.csv')
     pregnancy = ss.Pregnancy(fertility_rate=asfr_data, rel_fertility=0.5)
@@ -98,7 +99,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
 
     default_pars = {
         'start': 1980,
-        'end': 2045, # 2030, 2045, 2075
+        'end': 2070,
         'dt': 1/12,
         'rand_seed': rand_seed,
         'verbose': 0,
@@ -111,8 +112,8 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
     print('Starting', lbl)
 
     # ART calibrated to be near 90-90-90 and 95-95-95, drifts upwards due to mortality effect
-    interventions += [ ss.hiv.ART(year=[2004, 2020, 2030], coverage=[0, 0.58, 0.62]) ] #0.55
-    interventions += [ ss.hiv.VMMC(year=[2007, 2020, 2025, 2030], coverage=[0, base_vmmc, cov, 0]) ]
+    interventions += [ ART(year=[2004, 2020, 2030], coverage=[0, 0.58, 0.62]) ] #0.55
+    interventions += [ VMMC(year=[2007, 2020, 2025, 2030], coverage=[0, base_vmmc, cov, 0]) ]
 
     sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], interventions=interventions, pars=pars, label=lbl)
     sim.initialize()
@@ -182,7 +183,7 @@ if __name__ == '__main__':
         print('Running scenarios')
         results = run_scenarios(n_agents=args.n, n_seeds=args.s)
 
-    #plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = -1)
+    plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = -1)
 
     figdir_2030 = os.path.join(figdir, '2030')
     sc.path(figdir_2030).mkdir(parents=True, exist_ok=True)
