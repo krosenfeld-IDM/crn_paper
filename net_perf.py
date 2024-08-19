@@ -18,15 +18,15 @@ os.environ['NUMEXPR_NUM_THREADS'] = '1'
 n_steps = 5 # Was 25
 n_seeds = 3 # was 10
 #net_types = ['ErdosRenyi', 'Disk', 'Embedding']
-net_types = ['ErdosRenyi', 'Random', 'MF']
+net_types = ['Embedding', 'ErdosRenyi', 'Disk', 'Random'] # 'MF'
 #rngs = ['centralized', 'multi']
 rngs = ['multi']
 #n_agents = np.logspace(1, np.log10(30_000), 20) # np.log10(10000)
-n_agents = np.logspace(1, np.log10(150_000), 5) # np.log10(10000)
+n_agents = np.logspace(1, np.log10(100_000), 9)[:-1]
 #n_agents = [50_000] # 50k --> 1_249_975_000 possible edges
 
 basedir = os.path.join(os.getcwd(), 'figs')
-figdir = os.path.join(basedir, 'Net_perf-TEST')
+figdir = os.path.join(basedir, 'Net_perf')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 def get_net(net_type, n_agents):
@@ -66,7 +66,7 @@ def get_net(net_type, n_agents):
 
 
 def run_network(n_agents, n_steps, network, rand_seed, rng, idx):
-    sim = ss.Sim(n_agents=n_agents, networks=network)
+    sim = ss.Sim(n_agents=n_agents, networks=network, label=f'{network}_N{n_agents}_S{rand_seed}')
     sim.initialize()
 
     #n_edges = 0
@@ -89,15 +89,15 @@ for rng in rngs:
 
             seeds = n_seeds
             steps = n_steps
-            if n >= 10_000:
-                #seeds = n_seeds // 5 # Fewer seeds when many agents
-                #steps = n_steps // 5 # Fewer steps when many agents
+            if n >= 50_000:
+                ######seeds = n_seeds // 5 # Fewer seeds when many agents
+                ######steps = n_steps // 5 # Fewer steps when many agents
                 if net_type == 'Embedding':
-                    continue # Skip Embedding over 10k agents
+                    continue # Skip Embedding over 50k agents
 
             for rs in range(seeds):
                 cfgs.append({'n_agents':n, 'n_steps':n_steps, 'network':net, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
-    results += sc.parallelize(run_network, iterkwargs=cfgs, die=True, serial=False) # , maxmem=0.8
+    results += sc.parallelize(run_network, iterkwargs=cfgs, die=True, serial=True) # , maxmem=0.8
 
 df = pd.DataFrame(results, columns=['Time per Step', 'Num Agents', 'Network', 'Seed', 'Generator', 'Index'])
 df.to_csv(os.path.join(figdir, 'perf.csv'))
