@@ -12,8 +12,8 @@ import sciris as sc
 import pandas as pd
 import numpy as np
 from plotting import plot_scenarios
-from analyzers import GraphAnalyzer
-from hiv import HIV, ART, VMMC
+from crn_paper.analyzers import GraphAnalyzer
+from crn_paper.hiv import HIV, ART, VMMC
 
 # Suppress warning from seaborn
 import warnings

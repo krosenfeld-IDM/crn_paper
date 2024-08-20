@@ -10,7 +10,7 @@ import os
 import argparse
 import sciris as sc
 
-from PPH_demographics import PPH
+from crn_paper.PPH_demographics import PPH
 from plotting import plot_scenarios
 
 # Suppress warning from seaborn
