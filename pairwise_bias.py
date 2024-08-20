@@ -1,4 +1,4 @@
-# Perform tests of pairwise random numbers
+# Perform tests of pairwise random numbers as presented in Appendix A
 # WARNING: This script can take a while to run
 
 import numpy as np
@@ -32,7 +32,6 @@ sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 
 def hash(df):
-    #return int(hashlib.sha256(hash_pandas_object(df, index=True).values).hexdigest(), 16)
     return hashlib.sha256(hash_pandas_object(df, index=True).values).hexdigest()[:6]
 
 
@@ -53,21 +52,11 @@ def modulo():
     return n1[edge], n2[edge]
 
 
-# load the library
-#mylib = ctypes.CDLL("libms.so")
 def middle_sq():
     r1 = np.random.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
     r2 = np.random.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
 
     n1, n2 = np.triu_indices(n=n, k=1)
-    #mylib.midsq.argtypes = [ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64),  ctypes.c_size_t]
-    #mylib.midsq.restype = ctypes.POINTER(ctypes.c_uint32 * len(n1))
-
-    # call function
-    #r1p = r1[n1].ctypes.data_as(ctypes.POINTER(ctypes.c_uint64))
-    #r2p = r2[n2].ctypes.data_as(ctypes.POINTER(ctypes.c_uint64))
-    #ro = mylib.midsq(r1p, r2p, n1.size)
-    #r = np.frombuffer(ro.contents, dtype=np.uint32) / np.iinfo(np.uint32).max
 
     a = r1[n1]
     b = r2[n2]
@@ -77,28 +66,22 @@ def middle_sq():
 
     # Round 1
     x = x*x + y
-    #x = (x>>32) | (x<<32);
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 2
     x = x*x + z
-    #x = (x>>32) | (x<<32);
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 3
     x = x*x + y
-    #x = (x>>32) | (x<<32);
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 4
-    #ret[i] = (x*x + z) >> 32;
     x = x*x + z
     t = x.copy()
-    #x = (x>>32) | (x<<32);
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
     
     # Round 5 and xor
-    #ret = t ^ ((x*x + y) >> 32);
     x = np.right_shift(x*x + y, 32)
     r = t ** x
 
@@ -109,9 +92,6 @@ def middle_sq():
 
 g = np.random.PCG64DXSM()
 def xor():
-    #r1 = np.random.mtrand._rand.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
-    #r2 = np.random.mtrand._rand.randint(low=0, high=np.iinfo(np.uint64).max, dtype=np.uint64, size=n)
-
     r1 = g.random_raw(n)
     r2 = g.random_raw(n)
 
@@ -166,7 +146,6 @@ if __name__ == '__main__':
 
     # Manipulate results
     df.reset_index(inplace=True)
-
     df.to_csv( os.path.join(figdir, 'results.csv') )
 
     dfm = df.melt(id_vars='Graph Hash', var_name='Method', value_name='Count')

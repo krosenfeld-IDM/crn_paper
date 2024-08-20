@@ -4,7 +4,6 @@ Pregnancy with avertable maternal mortality risk from postpartum hemorrhage (PPH
 
 import numpy as np
 import starsim as ss
-import scipy.stats as sps
 
 __all__ = ['PPH']
 
@@ -59,7 +58,6 @@ class PPH(ss.Pregnancy):
             mn = self.sim.networks['maternalnet'].to_df()
 
             maternal_deaths = (self.ti_dead <= ti).uids
-            #####self.results['maternal_deaths'][sim.ti] = len(maternal_deaths)
             if np.any(maternal_deaths):
                 self._possible_maternal_death_uids = maternal_deaths
                 # Find infants, not using find_contacts because that is bidirectional
@@ -67,7 +65,6 @@ class PPH(ss.Pregnancy):
                 infant_uids_mm = mn.loc[(mn['p1'].isin(maternal_deaths)) & (mn['dur'] >= 0)]['p2'].values
 
                 infant_deaths = ss.uids(self.pars.p_infant_death.filter(infant_uids_mm))
-                ###self.results['infant_deaths'][sim.ti] = len(infant_deaths)
                 if np.any(infant_deaths):
                     self._possible_infant_death_uids = infant_deaths
                     self.sim.people.request_death(infant_deaths)
@@ -88,3 +85,5 @@ class PPH(ss.Pregnancy):
         if self._possible_infant_death_uids is not None:
             infant_deaths = people.ti_dead[self._possible_infant_death_uids] <= ti
             self.results['infant_deaths'][ti] = np.count_nonzero(infant_deaths)
+
+        return

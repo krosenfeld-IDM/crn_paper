@@ -1,3 +1,5 @@
+# Analyzer used to plot a graphical representation of contact networks over time
+
 import starsim as ss
 import numpy as np
 import pandas as pd

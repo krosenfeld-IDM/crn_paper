@@ -17,12 +17,8 @@ from run_HIV import run_sim
 sc.options(interactive=True)
 
 default_n_agents = 100
-# Three choices for network here, note that only the first two are stream safe
-#net_idx = 1
-#network = ['stable_monogamy', 'EmbeddingNet', 'hpv_network'][net_idx]
 network = 'EmbeddingNet'
 art_eff = 1
-#net_pars = [None, dict(duration=ss.weibull(c=1.5, scale=10)), None][net_idx]
 
 do_plot_graph = True
 # Several choices for how to layout the graph when plotting
@@ -31,30 +27,8 @@ kind = ['radial', 'bipartite', 'spring', 'multipartite'][1]
 do_plot_longitudinal = True
 do_plot_timeseries = True
 
-# on branch fix_348
-#options.rng can take values in ['centralized', 'single', 'multi']
-#ss.options(rng = 'multi')
-
 figdir = os.path.join(os.getcwd(), 'figs', network)
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
-
-class stable_monogamy(ss.SexualNetwork):
-    """
-    Very simple network for debugging in which edges are:
-    1-2, 3-4, 5-6, ...
-    """
-    def __init__(self, **kwargs):
-        # Call init for the base class, which sets all the keys
-        super().__init__(**kwargs)
-        return
-
-    def initialize(self, sim):
-        n = len(sim.people._uid_map)
-        n_edges = n//2
-        self.contacts.p1 = np.arange(0, 2*n_edges, 2) # EVEN
-        self.contacts.p2 = np.arange(1, 2*n_edges, 2) # ODD
-        self.contacts.beta = np.ones(n_edges)
-        return
 
 
 def run_scenario(n=10, rand_seed=0, analyze=True):
@@ -69,7 +43,6 @@ def run_scenario(n=10, rand_seed=0, analyze=True):
 
 
 def getpos(ti, g1, g2, guess=None, kind='bipartite'):
-
     n1 = dict(g1[ti].graph.nodes.data())
     n2 = dict(g2[ti].graph.nodes.data())
     nodes = sc.mergedicts(n2, n1)
@@ -157,9 +130,6 @@ def plot_graph(sim1, sim2):
 def plot_ts():
     # Plot timeseries summary
     fig, axv = plt.subplots(2,2, sharex=True)
-    #axv[0,0].plot(sim1.tivec, sim1.results.hiv.n_infected, label=sim1.label)
-    #axv[0,0].plot(sim2.tivec, sim2.results.hiv.n_infected, ls=':', label=sim2.label)
-    #axv[0,0].set_title('HIV number of infections')
     axv[0,0].plot(sim1.tivec, sim1.results.hiv.art_coverage, label=sim1.label)
     axv[0,0].plot(sim2.tivec, sim2.results.hiv.art_coverage, ls=':', label=sim2.label)
     axv[0,0].set_title('ART Coverage')
@@ -197,7 +167,7 @@ def analyze_people(sim):
     art_year = np.full(ever_alive.shape, np.nan)
     art_year[art] = sim.yearvec[p.hiv.ti_art.raw[ever_alive][art].astype(int)]
 
-    dead = (p.hiv.ti_dead.raw[ever_alive] < sim.ti) # np.isfinite(p.hiv.ti_dead.raw[ever_alive])
+    dead = (p.hiv.ti_dead.raw[ever_alive] < sim.ti)
     dead_year = np.full(ever_alive.shape, np.nan)
     dead_year[dead] = sim.yearvec[p.hiv.ti_dead.raw[ever_alive][dead].astype(int)]
 
@@ -213,10 +183,6 @@ def analyze_people(sim):
         'slot': p.slot.raw[ever_alive],
         'female': p.female.raw[ever_alive],
     })
-    #df.replace(to_replace=ss.INT_NAN, value=np.nan, inplace=True)
-    #df['age_infected'] = df['age_initial'] + df['ti_infected']
-    #df['age_art']      = df['age_initial'] + df['ti_art']
-    #df['age_dead']     = df['age_initial'] + df['ti_dead']
     return df
 
 
@@ -246,9 +212,6 @@ def plot_longitudinal(sim1, sim2):
     for n, (lbl, data) in enumerate(df.groupby('sim')):
         yp = data['ypos'] + n/(N+1) # Leave space
 
-        #ti_initial = np.maximum(-data['age_initial'], 0)
-        #ti_final = data['ti_dead'].fillna(40)
-        #plt.barh(y=yp, left=ti_initial, width=ti_final - ti_initial, color='k', height=height)
         plt.barh(y=yp, left=data['first_year'], width=data['last_year'] - data['first_year'], color='k', height=height)
 
 
@@ -276,8 +239,6 @@ def plot_longitudinal(sim1, sim2):
 
 
 if __name__ == '__main__':
-    #ss.options(_centralized = True)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--plot', help='Plot from a cached CSV file', type=str)
     parser.add_argument('-n', help='Number of agents', type=int, default=default_n_agents)

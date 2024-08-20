@@ -1,3 +1,5 @@
+# Network performance scaling, used to produce Figure C2
+
 import starsim as ss
 import numpy as np
 import pandas as pd
@@ -15,15 +17,11 @@ os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
-n_steps = 5 # Was 25
-n_seeds = 3 # was 10
-#net_types = ['ErdosRenyi', 'Disk', 'Embedding']
+n_steps = 5
+n_seeds = 3
 net_types = ['Embedding', 'ErdosRenyi', 'Disk', 'Random'] # 'MF'
-#rngs = ['centralized', 'multi']
 rngs = ['multi']
-#n_agents = np.logspace(1, np.log10(30_000), 20) # np.log10(10000)
 n_agents = np.logspace(1, np.log10(100_000), 9)[:-1]
-#n_agents = [50_000] # 50k --> 1_249_975_000 possible edges
 
 basedir = os.path.join(os.getcwd(), 'figs')
 figdir = os.path.join(basedir, 'Net_perf')
@@ -33,17 +31,15 @@ def get_net(net_type, n_agents):
     nt = net_type.lower()
     if nt == 'disk':
         return dict(type='disk', r=0.2, v=0.2 * 365)
-        #ss.DiskNet(r=0.075 * (50/n_agents)**0.5, v=0.2 * 365),
-        #dict(type='disk', r=0.075, v=0.2 * 365),
 
     elif nt == 'erdosrenyi':
         return dict(type='erdosrenyi', p = 0.9/(n_agents-1))
 
     elif nt == 'embedding':
         return dict(type='embedding', 
-                duration = ss.constant(0), #ss.lognorm_ex(mean=1),  # Can vary by age, year, and individual pair. Set scale=exp(mu) and s=sigma where mu,sigma are of the underlying normal distribution.
-                participation = ss.bernoulli(p=1),  # Probability of participating in this network - can vary by individual properties (age, sex, ...) using callable parameter values
-                debut = ss.constant(v=0),  # Age of debut can vary by using callable parameter values
+                duration = ss.constant(0),
+                participation = ss.bernoulli(p=1),
+                debut = ss.constant(v=0),
                 rel_part_rates = 1.0
             )
 
@@ -54,30 +50,27 @@ def get_net(net_type, n_agents):
 
     elif nt == 'mf':
         return dict(type='mf', 
-                duration = ss.constant(0), #ss.lognorm_ex(mean=1),  # Can vary by age, year, and individual pair. Set scale=exp(mu) and s=sigma where mu,sigma are of the underlying normal distribution.
-                participation = ss.bernoulli(p=1),  # Probability of participating in this network - can vary by individual properties (age, sex, ...) using callable parameter values
-                debut = ss.normal(loc=0),  # Age of debut can vary by using callable parameter values
+                duration = ss.constant(0),
+                participation = ss.bernoulli(p=1),
+                debut = ss.normal(loc=0),
                 rel_part_rates = 1.0,
             )
 
-
     raise Exception(f'Unknown net {net_type}')
-    return
 
 
 def run_network(n_agents, n_steps, network, rand_seed, rng, idx):
     sim = ss.Sim(n_agents=n_agents, networks=network, label=f'{network}_N{n_agents}_S{rand_seed}')
     sim.initialize()
 
-    #n_edges = 0
     n = sim.networks[0]
     T = sc.tic()
     for i in range(n_steps):
         n.update()
-        #n_edges += len(n.p1)
     dt = sc.toc(T, output=True) / n_steps
 
     return (dt, n_agents, network['type'], rand_seed, rng, idx)
+
 
 results = []
 for rng in rngs:
@@ -90,8 +83,6 @@ for rng in rngs:
             seeds = n_seeds
             steps = n_steps
             if n >= 50_000:
-                ######seeds = n_seeds // 5 # Fewer seeds when many agents
-                ######steps = n_steps // 5 # Fewer steps when many agents
                 if net_type == 'Embedding':
                     continue # Skip Embedding over 50k agents
 

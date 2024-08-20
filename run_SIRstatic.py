@@ -1,5 +1,5 @@
 """
-Static networks with SIR disease dynamics // vaccination
+Example 2) Static networks with SIR disease dynamics + vaccination
 """
 
 # %% Imports and settings
@@ -32,7 +32,6 @@ basedir = os.path.join(os.getcwd(), 'figs')
 def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_initial_prevalence=False, pars=None, sir_pars=None):
 
     ppl = ss.People(n_agents)
-    # watts_strogatz_graph, erdos_renyi_graph, grid_2d_graph, configuration_model, line_graph, barabasi_albert_graph, scale_free_graph, complete_graph, maybe a tree
     if network is None:
         G=nx.barabasi_albert_graph(n=n_agents, m=1, seed=rand_seed)
         G.name = 'Barabasi-Albert'
@@ -50,9 +49,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
     default_sir_pars = {
         'beta': 75,
-        #'dur_inf': sps.weibull_min(c=1, scale=30/365), # When c=1, it's an exponential
         'dur_inf': ss.expon(scale=30/365),
-        #'dur_inf': sps.weibull_min(c=3, scale=33.5/365), # Can check sir_pars['dur_inf'].mean()
         'init_prev': 0,  # Will seed manually
         'p_death': 0.05, # 5% chance of death
     }
@@ -75,8 +72,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
 
         # Create the intervention
         MyIntervention = ss.campaign_vx(
-            #years = [pars['start'], pars['start'] + 4/365, pars['start'] + 5/365], # 5 days after start
-            #prob = [0, 0, cov],
             years = pars['start'] + 5/365, # 5 days after start
             prob = cov,
             product=MyVaccine
@@ -112,14 +107,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
     df['rng'] = rng
     df['n_agents'] = n_agents
 
-    ''' Nice plot, but doesn't belong here (figdir not defined either)
-    if debug and rand_seed == 0: # Will repeat for coverage sweep, but that's okay!
-        fig = plot_graph(G)
-        fig.savefig(os.path.join(figdir, f'graph_{n_agents}_{G.name}.png'), bbox_inches='tight', dpi=300)
-        plt.close(fig)
-        print(f'Mean duration of infection is {sir_pars["dur_inf"].mean() * 365} days')
-    '''
-
     print('Finishing', lbl)
 
     return df
@@ -129,7 +116,6 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     figdir = os.path.join(basedir, 'SIR_coverage' if not debug else 'SIR_coverage-debug')
     sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
-    #cov_levels = [0.01, 0.10, 0.25, 0.90] + [0] # Must include 0 as that's the reference level
     cov_levels = [0.05, 0.80] + [0] # Must include 0 as that's the reference level
 
     results = []
@@ -138,14 +124,10 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
         ss.options(_centralized = rng=='centralized')
         cfgs = []
         for rs in range(n_seeds):
-            G = None
-            #G = nx.connected_watts_strogatz_graph(n=n_agents, k=6, p=0.2, seed=rs) # Small world
-            #G.name = 'Watts-Strogatz'
-    
             for cov in cov_levels:
                 cfgs.append({'cov':cov, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
         T = sc.tic()
-        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'network':G, 'fixed_initial_prevalence':False}, iterkwargs=cfgs, die=True, serial=False)
+        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'network':None, 'fixed_initial_prevalence':False}, iterkwargs=cfgs, die=True, serial=False)
         times[f'rng={rng}'] = sc.toc(T, output=True)
 
     print('Timings:', times)
@@ -155,18 +137,6 @@ def sweep_cov(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
 
     return df
 
-
-'''
-def grid_2d(m, n):
-    from networkx.utils import pairwise
-    G = nx.empty_graph(0)
-    rows = np.arange(m)
-    cols = np.arange(n)
-    G.add_nodes_from(i*m+j for i in rows for j in cols)
-    G.add_edges_from((i*m+j, pi*m+j) for pi, i in pairwise(rows) for j in cols)
-    G.add_edges_from((i*m+j, i*m+pj) for i in rows for pj, j in pairwise(cols))
-    return G
-'''
 
 class Grid2D:
     def __init__(self, m, n):
@@ -216,7 +186,6 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
                 'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 10}),
                 'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 14}),
                 'Grid 2D':                      (Grid2D(m=s, n=s).G, {'beta': 18.5})
-                #'Complete':                     (nx.complete_graph(n=n_agents), {'beta': 0.5}),
             }
             for name, (G,sir_pars) in graphs.items():
                 G.name = name
@@ -259,12 +228,8 @@ def sweep_n(n_seeds=default_n_rand_seeds):
         cfgs = []
         for n_agents in n_agents_levels:
             for rs in range(n_seeds):
-                G = None
-                #G = nx.connected_watts_strogatz_graph(n=n_agents, k=6, p=0.2, seed=rs) # Small world
-                #G.name = 'Watts-Strogatz'
-
                 for cov in cov_levels:
-                    cfgs.append({'n_agents':n_agents, 'cov':cov, 'rand_seed':rs, 'network':G, 'rng':rng, 'idx':len(cfgs)})
+                    cfgs.append({'n_agents':n_agents, 'cov':cov, 'rand_seed':rs, 'network':None, 'rng':rng, 'idx':len(cfgs)})
         T = sc.tic()
         results += sc.parallelize(run_sim, kwargs={'eff':efficacy, 'fixed_initial_prevalence':True}, iterkwargs=cfgs, die=True, serial=False)
         times[f'rng={rng}'] = sc.toc(T, output=True)
@@ -273,49 +238,11 @@ def sweep_n(n_seeds=default_n_rand_seeds):
 
     df = pd.concat(results)
 
-    # NORMALIZE
+    # Normalize
     for col in ['Susceptible', 'Infected', 'Recovered']:
         df[col] /= df['n_agents']
 
     df.to_csv(os.path.join(figdir, 'results.csv'))
-
-    return df
-
-def audit():
-    figdir = os.path.join(basedir, 'SIR_audit' if not debug else 'SIR_audit-debug')
-    sc.path(figdir).mkdir(parents=True, exist_ok=True)
-
-    s = 5
-    n_agents = s**2
-    rs = 0 # Seed 0
-
-    cov_levels = [0, 0.25] # Must include 0 as that's the reference level
-    efficacy = 1
-
-    results = []
-
-    cfgs = []
-    G = Grid2D(m=s, n=s).G
-    G.name = 'Grid 2D'
-    sir_pars = {'beta': 18.5}
-
-    for cov in cov_levels:
-        cfgs.append({'n_agents':n_agents, 'cov':cov, 'rand_seed':rs, 'network':G, 'idx':len(cfgs)})
-    T = sc.tic()
-    results += sc.parallelize(run_sim, kwargs={'eff':efficacy, 'sir_pars':sir_pars, 'fixed_initial_prevalence':True, 'rng':'multi'}, iterkwargs=cfgs, die=True, serial=False)
-
-    print('Timings:', sc.toc(T, output=True))
-
-    df = pd.concat(results)
-    df.to_csv(os.path.join(figdir, 'results.csv'))
-
-    def plot_graph(data, G, **kwargs):
-        pass
-
-    import seaborn as sns
-    g = sns.FacetGrid(data=df, col='cov')
-    g.map_dataframe(plot_graph, G)
-
 
     return df
 
@@ -342,10 +269,8 @@ if __name__ == '__main__':
     else:
         print('Running scenarios')
         results['SIR_n'] = sweep_n(n_seeds=args.s)
-        if False:
-            results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
-            results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
-            results['SIR_audit'] = audit()
+        results['SIR_network'] = sweep_network(n_agents=args.n, n_seeds=args.s)
+        results['SIR_coverage'] = sweep_cov(n_agents=args.n, n_seeds=args.s)
 
     if 'SIR_n' in results:
         figdir = os.path.join(basedir, 'SIR_n' if not debug else 'SIR_n-debug')
@@ -359,12 +284,4 @@ if __name__ == '__main__':
         figdir = os.path.join(basedir, 'SIR_coverage' if not debug else 'SIR_coverage-debug')
         plot_scenarios(results['SIR_coverage'], figdir, channels=['Susceptible', 'Infected', 'Recovered'], var1='cov', var2='channel')
 
-    if 'SIR_audit' in results:
-        figdir = os.path.join(basedir, 'SIR_audit' if not debug else 'SIR_audit-debug')
-        ###plot_scenarios(results['SIR_audit'], figdir, channels=['Recovered'], var1='n_agents', var2='cov', slice_year = -1) # slice_year = 2020.05
-
-        #g = Grid2D(5, 5)
-        #g.plot()
-        #plt.show()
-    
     print('Done')

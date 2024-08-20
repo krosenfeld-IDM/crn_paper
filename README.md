@@ -6,6 +6,9 @@ The three examples presented in the publication can be reproduced by running the
 * *SIR:* run_SIR.py
 * *VMMC:* run_VMMC.py
 
-`pairwise_bias.py` was used to evaluate potential bias in pairwise random numbers, resulting in Appendix B.
+`pairwise_bias.py` was used to evaluate potential bias in pairwise random numbers, resulting in Appendix A.
+`net_perf.py` was used to evaluate the performance of several networks, resulting in the figure in Appendix C.
 
 The result of running each script is a corresponding folder of results and figures that will appear within the `figs` folder.
+
+Other scripts here are for disease-specific modules like `hiv.py` and `PPH_demographics.py` or utilities like `plotting.py`.

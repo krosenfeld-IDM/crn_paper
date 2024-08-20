@@ -1,9 +1,12 @@
 """
-Exploring singlerng vs rng for a model HIV system sweeping coverage of ART.
+Example 3) Impact of voluntary medical male circumcision (VMMC) on HIV.
 """
 
 # %% Imports and settings
 import os
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+
 import starsim as ss
 import sciris as sc
 import pandas as pd
@@ -19,7 +22,7 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 sc.options(interactive=False) # Assume not running interactively
 
-rngs = ['centralized', 'multi'] # 'single', 
+rngs = ['centralized', 'multi']
 
 debug = False
 default_n_agents = [10_000, 1_000][debug]
@@ -31,30 +34,6 @@ vmmc_eff = 0.6
 
 figdir = os.path.join(os.getcwd(), 'figs', 'VMMC' if not debug else 'VMMC-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
-
-class change_beta(ss.Intervention):
-    def __init__(self, years, xbetas):
-        super().__init__()
-        self.name = 'Change Beta Intervention'
-        self.years = years
-        self.xbetas = xbetas
-        self.change_inds = None
-        return
-
-    def apply(self, sim):
-        if self.change_inds is None:
-            self.change_inds = sc.findnearest(sim.yearvec, self.years)
-
-        idx = np.where(sim.ti == self.change_inds)[0]
-        if len(idx):
-            xbeta = self.xbetas[idx[0]]
-
-            for lbl, disease in sim.diseases.items():
-                for blbl, betas in disease.pars.beta.items():
-                    sim.diseases[lbl].pars.beta[blbl] = [b*xbeta for b in betas] # Note, multiplicative
-
-        return
-
 
 def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return_sim=False, analyze=False):
 
@@ -70,15 +49,11 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
         return dur
 
     en_pars = dict(duration=ss.weibull(c=2.5, scale=rel_dur)) # c is shape, gives a mean of about 0.9*scale years.
-    #en_pars = dict(duration=ss.weibull(c=1.5, scale=8)) # c is shape, gives a mean of about 0.9*scale years.
 
     networks = ss.ndict(ss.EmbeddingNet(en_pars), ss.MaternalNet())
 
     default_hiv_pars = {
-        #'beta': {'embedding': [0.015, 0.012], 'maternal': [0.2, 0]},
-        #'beta': {'embedding': [0.012, 0.010], 'maternal': [0.2, 0]},
         'beta': {'embedding': [0.010, 0.008], 'maternal': [0.2, 0]},
-        #'beta': {'embedding': [0.008, 0.006], 'maternal': [0.2, 0]},
         'init_prev': np.maximum(5/n_agents, 0.02),
         'art_efficacy': 0.8,
         'VMMC_efficacy': 0.6,
@@ -92,9 +67,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
     asmr_data = pd.read_csv('data/ssa_asmr.csv')
     deaths = ss.Deaths(death_rate=asmr_data)
 
-    #y = [1995, 2000, 2005]
-    #xb = [0.7, 0.7, 0.7] # Multiplicative reductions
-    #interventions = [change_beta(y, xb)]
     interventions = []
 
     default_pars = {
@@ -112,7 +84,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
     print('Starting', lbl)
 
     # ART calibrated to be near 90-90-90 and 95-95-95, drifts upwards due to mortality effect
-    interventions += [ ART(year=[2004, 2020, 2030], coverage=[0, 0.58, 0.62]) ] #0.55
+    interventions += [ ART(year=[2004, 2020, 2030], coverage=[0, 0.58, 0.62]) ]
     interventions += [ VMMC(year=[2007, 2020, 2025, 2030], coverage=[0, base_vmmc, cov, 0]) ]
 
     sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], interventions=interventions, pars=pars, label=lbl)
@@ -124,7 +96,6 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
 
     df = pd.DataFrame( {
         'year': sim.yearvec,
-        #'hiv.n_infected': sim.results.hiv.n_infected, # Optional, but mostly redundant with prevalence
         'Births': sim.results.pregnancy.births.cumsum(),
         'Deaths': sim.results.hiv.new_deaths.cumsum(),
         'Infections': sim.results.hiv.cum_infections,
@@ -166,6 +137,88 @@ def run_scenarios(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     return df
 
 
+def plot_sim_savings(df, figdir, channels=None):
+    import seaborn as sns
+    import datetime as dt
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    sns.set_theme(font_scale=1.2, style='whitegrid')
+
+    # Renaming
+    df.replace({'rng': {'centralized':'Centralized', 'multi': 'CRN'}}, inplace=True)
+
+    first_year = int(df['year'].iloc[0])
+    assert df['year'].iloc[0] == first_year
+    df['date'] = pd.to_datetime(365 * (df['year']-first_year), unit='D', origin=dt.datetime(year=first_year, month=1, day=1)) #pd.to_datetime(df['year'], format='%f', unit='Y')
+
+    covs = df['cov'].unique()
+    covs.sort()
+    rep = {c: f'{c:.0%}' if c > 0 else 'Reference' for c in covs}
+    df.replace({'cov': rep}, inplace=True)
+    cov_ord = [rep[c] for c in covs]
+    first = cov_ord.pop(0)
+    cov_ord.append(first)
+    df['cov'] = pd.Categorical(df['cov'], categories=cov_ord) # Agh!
+
+    df.rename(columns={'cov': 'Coverage'}, inplace=True)
+    cov = 'Coverage'
+
+    id_vars = ['date', 'rand_seed', cov, 'rng', 'network', 'eff', 'n_agents']
+    d = pd.melt(df, id_vars=['date', 'rand_seed', cov, 'rng', 'network', 'eff', 'n_agents'], var_name='channel', value_name='Value')
+
+    # Slice to the one channel specified by the user
+    d = d.loc[d['channel'].isin(channels)]
+
+    d['channel'] = pd.Categorical(d['channel'], categories = channels)
+
+    d['baseline'] = d[cov]=='Reference'
+    bl = d.loc[d['baseline']]
+    scn = d.loc[~d['baseline']]
+
+    id_vars.append('channel')
+    bl = bl.set_index(id_vars)[['Value']].reset_index(cov)
+    scn = scn.set_index(id_vars)[['Value']].reset_index(cov)
+
+    id_vars.remove(cov)
+    mrg = scn.merge(bl, on=id_vars, suffixes=('', '_ref'))
+    mrg['Value - Reference'] = mrg['Value'] - mrg['Value_ref']
+    mrg['Cases Averted'] = mrg['Value_ref'] - mrg['Value']
+    mrg = mrg.sort_index()
+    mrg['Coverage'] = pd.Categorical(mrg['Coverage'], categories=cov_ord[:-1]) # Agh^2!
+
+    id_vars = ['date', cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
+
+    # Standard error
+    se = mrg.reset_index().groupby(id_vars, observed=True)[['Value', 'Value_ref']].apply(lambda x: np.std(x['Value_ref']-x['Value'], ddof=1) / np.sqrt(len(x)))
+    se.name = 'Standard Error'
+
+    sep = pd.pivot(se.reset_index(), index=['date', cov, 'network', 'eff', 'n_agents', 'channel'], columns='rng', values='Standard Error')
+    sep['SE Ratio'] = sep['Centralized'] / sep['CRN']
+    sep['Sim Savings'] = sep['SE Ratio']**2
+
+
+    fig, ax = plt.subplots(figsize=(9, 3))
+    g = sns.lineplot(data=sep, x='date', y='Sim Savings', hue='channel', ax=ax)
+    g.set_xlabel('Year')
+    g.set_ylabel('Fold Reduction in Replicates')
+    locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
+    formatter = mdates.ConciseDateFormatter(locator)
+    g.axes.xaxis.set_major_locator(locator)
+    g.axes.xaxis.set_major_formatter(formatter)
+    g.set_ylim(bottom=0)
+
+    dates = sep.loc[~np.isnan(sep['Sim Savings'])].index.get_level_values('date')
+    g.set_xlim(left=dt.datetime(year=2020, month=1, day=1), right=dates[-1])
+    g.figure.savefig(os.path.join(figdir, 'sim_savings.pdf'), bbox_inches='tight', transparent=True)
+    plt.close(g.figure)
+
+
+    print('Figures saved to:', os.path.join(os.getcwd(), figdir))
+
+    return
+
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -183,9 +236,6 @@ if __name__ == '__main__':
         print('Running scenarios')
         results = run_scenarios(n_agents=args.n, n_seeds=args.s)
 
-    #plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = -1)
-
-    #figdir_2030 = os.path.join(figdir, '2030')
-    #sc.path(figdir_2030).mkdir(parents=True, exist_ok=True)
+    plot_sim_savings(results.copy(), figdir, channels=['Infections', 'Deaths'])
     plot_scenarios(results, figdir, channels=['Births', 'Deaths', 'Infections', 'Prevalence', 'Prevalence 15-49', 'ART Coverage', 'VMMC Coverage 15-49', 'Population'], var1='cov', var2='channel', slice_year = [2025, 2040, 2070]) # slice_year = 2030
     print('Done')

@@ -1,5 +1,5 @@
 """
-Define default HIV disease module and related interventions
+Implement a simple HIV module for the VMMC analysis
 """
 
 import numpy as np
@@ -14,12 +14,11 @@ class HIV(ss.Infection):
     def __init__(self, pars=None, *args, **kwargs):
         super().__init__()
         self.default_pars(
-            beta = 1.0, # Placeholder value
+            beta = 1.0, # Placeholder value to be completed below
             art_efficacy = 0.96,
             VMMC_efficacy = 0.6,
             init_prev = ss.bernoulli(p=0.05),
             survival_without_art = ss.weibull(c=2, scale=13),
-            #survival_without_art = ss.weibull(c=2, scale=lambda self, sim, uids: 21.182-0.2717*sim.people.age[uids]), # Adult survival from EMOD
         )
         self.update_pars(pars=pars, **kwargs)
 
@@ -33,7 +32,6 @@ class HIV(ss.Infection):
         return
 
     def update_pre(self):
-        """ Update CD4 """
         people = self.sim.people
 
         self.rel_trans[self.infected & self.on_art] = 1 - self.pars['art_efficacy']
@@ -88,9 +86,7 @@ class ART(ss.Intervention):
         self.year = sc.toarray(year)
         self.coverage = sc.toarray(coverage)
         super().__init__()
-        self.default_pars(
-        #    art_delay = ss.lognorm_im(mean=1) # Value in years
-        )
+        self.default_pars()
         self.update_pars(pars=pars, **kwargs)
 
         prob_art_at_init = lambda self, sim, uids: np.interp(sim.year, self.year, self.coverage)
@@ -195,13 +191,11 @@ class VMMC(ss.Intervention):
         if recent_debut.any():
             inds = self.prob_VMMC_at_debut.filter(recent_debut)
             hiv.circumcised[inds] = True
-            #hiv.ti_circumcised[inds] = sim.ti
             n_added += len(inds)
 
         if male_novmmc.any():
             inds = self.prob_VMMC_post_debut.filter(male_novmmc)
             hiv.circumcised[inds] = True
-            #hiv.ti_circumcised[inds] = sim.ti
             n_added += len(inds)
 
         # Add results

@@ -1,5 +1,5 @@
 """
-Postpartum hemorrhage (PPH)  simulation with an intervention like E-MOTIVE
+Example 1) Postpartum hemorrhage (PPH) simulation with an intervention like E-MOTIVE
 """
 
 # %% Imports and settings
@@ -42,9 +42,6 @@ class PPH_Intv(ss.Intervention):
         super().__init__(**kwargs)
 
         self.p_pphintv = ss.bernoulli(p=lambda self, sim, uids: np.interp(sim.year, self.year, self.coverage))
-        #def fun(self, sim, uids):
-        #    return np.interp(sim.year, self.year, self.coverage)
-        #self.p_pphintv = ss.bernoulli(p=fun)
         self.eff_pphintv = ss.bernoulli(p=PPH_INTV_EFFICACY)
         return
 
@@ -80,9 +77,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     pars = {
         'start': 2024,
         'end': 2030,
-        #'remove_dead': True,
         'rand_seed': rand_seed,
-        #'slot_scale': 10,
         'verbose': 0,
         'dt': 0.25,
     }
@@ -92,18 +87,14 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
 
     asfr_data = pd.read_csv('data/ssa_asfr.csv')
     preg_pars = {
-        #'fertility_rate': 50, # per 1,000 live women
         'fertility_rate': asfr_data, # per 1,000 live women.
         'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
-        #'min_age': -1,
-        #'max_age': 1000,
     }
     preg = PPH(preg_pars)
 
 
     asmr_data = pd.read_csv('data/ssa_asmr.csv')
     death_pars = {
-        #'death_rate': 10, # per 1,000
         'death_rate': asmr_data, # rate per person
         'units': 1
     }
@@ -122,7 +113,6 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
 
     df = pd.DataFrame( {
         'year': sim.yearvec,
-        #'pph.mother_died.cumsum': sim.results.pph.mother_died.cumsum(),
         'Births': sim.results.pph.births.cumsum(),
         'CBR': sim.results.pph.cbr,
         'New Deaths': sim.results['new_deaths'],
@@ -144,7 +134,6 @@ def run_scenarios(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
     results = []
     times = {}
     for rng in rngs:
-        #ss.options(rng=rng)
         ss.options(_centralized = rng=='centralized')
         cfgs = []
         for rs in range(n_seeds):

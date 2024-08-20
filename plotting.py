@@ -1,3 +1,5 @@
+# Utility scripts to produce plots.
+
 import os
 import seaborn as sns
 import pandas as pd
@@ -15,9 +17,6 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 
 def fix_dates(g):
     for ax in g.axes.flat:
-        #ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%Y'))
-        #ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter())
-        #ax.xaxis.set_major_locator(mdates.MonthLocator())
         locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
         formatter = mdates.ConciseDateFormatter(locator)
         ax.xaxis.set_major_locator(locator)
@@ -26,9 +25,7 @@ def fix_dates(g):
 def fix_yaxis(g):
     for ax in g.axes.flat:
         locator = mtick.MaxNLocator(nbins=5, min_n_ticks=5)
-        #formatter = mdates.ConciseDateFormatter(locator)
         ax.yaxis.set_major_locator(locator)
-        #ax.yaxis.set_major_formatter(formatter)
 
 def fix_axis_labels(g, prefix=None):
     for i in range(g.axes.shape[0]):
@@ -91,7 +88,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     id_vars = ['date', cov, 'rng', 'network', 'eff', 'n_agents', 'channel']
     cor = mrg.reset_index().groupby(id_vars, observed=True)[['Value', 'Value_ref']].apply(lambda x: np.corrcoef(x['Value'], x['Value_ref'], rowvar=False)[0,1])
     cor.name = 'Pearson'
-    #cor.replace([np.inf, -np.inf, np.nan], 1, inplace=True)
 
     # Standard error
     se = mrg.reset_index().groupby(id_vars, observed=True)[['Value', 'Value_ref']].apply(lambda x: np.std(x['Value_ref']-x['Value'], ddof=1) / np.sqrt(len(x)))
@@ -120,8 +116,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             palette='Set1', errorbar=('pi', 95), estimator=np.median, lw=2, ax=ax)
         return
 
-    #g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row=var2, col='rng', col_order=rngs,
-    #    palette='Set1', facet_kws=fkw, **kw, errorbar=('pi', 25), estimator=np.median, lw=2)
     g = sns.relplot(kind='line', data=d, x='date', y='Value', hue=var1, hue_order=var1_ord, row=var2, col='rng', col_order=rngs,
         palette='Set1', facet_kws=fkw, **kw, units='rand_seed', estimator=None, lw=0.05, alpha=0.5)
     g.map_dataframe(plot_median)
@@ -155,7 +149,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g = sns.relplot(kind='line', data=mrg_by_ms, x='date', y='Value - Reference', hue=var1, hue_order=var1_ord, col=var2, #col_order=var2_ord,
                 palette='Set1', estimator=None, units='rand_seed', lw=0.5, facet_kws=fkw, **kw)
         g.set_titles(col_template='{col_name}', row_template='{row_name}')
-        #g.figure.suptitle('MultiRNG' if ms else 'SingleRNG')
         g.figure.subplots_adjust(top=0.88)
         g.set_xlabels('Date')
         fix_dates(g)
@@ -185,11 +178,24 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g = sns.displot(data=mtf_years.reset_index(), kind='kde', fill=True, rug=True, cut=0, hue='date', x='Cases Averted',
             row=var2, col='rng', col_order=rngs, facet_kws=facet_kws, palette='brg', **kw)
         g.set_titles(col_template='{col_name}', row_template='{row_name}')
-        #g.set_xlabels(f'Value - Reference on {slice_str}')
         fix_yaxis(g)
         g.figure.savefig(os.path.join(figdir, 'slice_years.png'), bbox_inches='tight', dpi=300)
         g.figure.savefig(os.path.join(figdir, 'slice_years.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
+
+
+        colors = ['#ff00bf', '#009900']
+        fig_kw = kw.copy()
+        fig_kw['aspect'] = 1
+        facet_kws['sharex'] = False
+        g = sns.displot(data=mtf_years.reset_index(), kind='ecdf', rug=True, hue='rng', x='Cases Averted',
+        row=var2, col='date', facet_kws=facet_kws, palette=sns.color_palette(colors), **fig_kw)
+        g.set_titles(col_template='{col_name}', row_template='{row_name}')
+        fix_yaxis(g)
+        g.figure.savefig(os.path.join(figdir, 'slice_years_v2.png'), bbox_inches='tight', dpi=300)
+        g.figure.savefig(os.path.join(figdir, 'slice_years_v2.pdf'), bbox_inches='tight', transparent=True)
+        plt.close(g.figure)
+        facet_kws['sharex'] = 'row'
 
 
 
@@ -233,10 +239,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     if var1 in ctf.columns:
         ctf.set_index(var1, append=True)
     ctf = ctf.sort_index()
-    #if len(channels) > 1:
-    #    g = sns.relplot(data=ctf, kind='scatter', hue='rng', hue_order=rngs, style='rng', style_order=rngs, x='Value_ref', y='Value', size='rng', sizes={'Centralized':10, 'CRN': 10},
-    #        col='channel', col_order=channels, row=var1, row_order=var1_ord, facet_kws=fkw, palette=rng_colors, **kw)
-    #else:
     facet_kws = fkw.copy()
     facet_kws['sharey'] = 'row'
     facet_kws['sharex'] = 'row'
@@ -248,7 +250,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     g.set_titles(col_template='{col_name}', row_template='{row_name}')
     g.set_xlabels(f'Reference on {slice_str}')
     g.set_ylabels(f'Value on {slice_str}')
-    #fix_axis_labels(g, postfix=f'as of {slice_str}')
     fix_yaxis(g)
     g.figure.savefig(os.path.join(figdir, 'cor_slice.png'), bbox_inches='tight', dpi=300)
     g.figure.savefig(os.path.join(figdir, 'cor_slice.pdf'), bbox_inches='tight', transparent=True)
@@ -312,7 +313,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.set_xlabels('Date')
         fix_dates(g)
         fix_yaxis(g)
-        #fix_axis_labels(g)
         g.figure.savefig(os.path.join(figdir, 'cor_single.png'), bbox_inches='tight', dpi=300)
         g.figure.savefig(os.path.join(figdir, 'cor_single.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
@@ -323,9 +323,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     #%% CORRELATION OVER TIME SINGLE PANEL v2
     try:
         g = sns.relplot(kind='line', data=corf, x='date', y='Pearson',
-                #col=var2, col_order=var2_ord,
                 hue=var1, hue_order=var1_ord,
-                #style='rng', style_order=rngs,
                 col='rng', col_order=rngs,
                 style=var2, style_order=var2_ord,
                 palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
@@ -334,7 +332,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.set_xlabels('Date')
         fix_dates(g)
         fix_yaxis(g)
-        #fix_axis_labels(g)
         g.figure.savefig(os.path.join(figdir, 'cor_single_v2.png'), bbox_inches='tight', dpi=300)
         g.figure.savefig(os.path.join(figdir, 'cor_single_v2.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
@@ -351,9 +348,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     #%% SE OVER TIME SINGLE PANEL
     try:
         g = sns.relplot(kind='line', data=sef, x='date', y='Standard Error',
-                #col=var2, col_order=var2_ord,
                 hue=var1, hue_order=var1_ord,
-                #style='rng', style_order=rngs,
                 col='rng', col_order=rngs,
                 style=var2, style_order=var2_ord,
                 palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
@@ -362,7 +357,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
         g.set_xlabels('Date')
         fix_dates(g)
         fix_yaxis(g)
-        #fix_axis_labels(g)
         g.figure.savefig(os.path.join(figdir, 'se_single_v2.png'), bbox_inches='tight', dpi=300)
         g.figure.savefig(os.path.join(figdir, 'se_single_v2.pdf'), bbox_inches='tight', transparent=True)
         plt.close(g.figure)
@@ -381,7 +375,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
                 inds = np.random.choice(len(x), size=nr, replace=True) # Replace with bootstrap sampling
                 s += np.std(x['Value_ref'].iloc[inds]-x['Value'].iloc[inds], ddof=1) / np.sqrt(nr)
             ret[idx] = s / trials
-            #ret[idx] = np.std(x['Value_ref'][:nr]-x['Value'][:nr], ddof=1) / np.sqrt(nr)
 
         s = pd.Series(ret, index=pd.Index(nreps, name='Num Reps'))
         return s
@@ -399,9 +392,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             serf = ser
         try:
             g = sns.relplot(kind='line', data=serf, x='Num Reps', y='Standard Error',
-                    #col=var2, col_order=var2_ord,
                     hue=var1, hue_order=var1_ord,
-                    #style='rng', style_order=rngs,
                     col='rng', col_order=rngs,
                     row='channel',
                     style=var2, style_order=var2_ord,
@@ -410,8 +401,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             g.figure.subplots_adjust(top=0.88)
             g.set_xlabels('Number of Replicates')
             g.set(yscale="log")
-            #fix_yaxis(g)
-            #fix_axis_labels(g)
             g.figure.savefig(os.path.join(figdir, f'se_final_{year}.png'), bbox_inches='tight', dpi=300)
             g.figure.savefig(os.path.join(figdir, f'se_final_{year}.pdf'), bbox_inches='tight', transparent=True)
             plt.close(g.figure)
@@ -424,10 +413,7 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
             if var2 == 'channel':
                 var2 = var2_ord=None
             g = sns.relplot(kind='line', data=sdf, x='Num Reps', y='Ratio',
-                    #col=var2, col_order=var2_ord,
                     hue=var1, hue_order=var1_ord,
-                    #style='rng', style_order=rngs,
-                    ##col='rng', col_order=rngs,
                     row='channel',
                     style=var2, style_order=var2_ord,
                     palette='Set1', errorbar='sd', lw=1, facet_kws=fkw, **kw)
@@ -450,7 +436,6 @@ def plot_scenarios(df, figdir, channels=None, var1='cov', var2='channel', slice_
     print('Figures saved to:', os.path.join(os.getcwd(), figdir))
 
     return
-
 
 
 def plot_graph(G):
