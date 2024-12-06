@@ -25,14 +25,14 @@ sc.options(interactive=False) # Assume not running interactively
 rngs = ['centralized', 'multi']
 
 debug = True
-default_n_agents = [10_000, 1_000][debug]
+default_n_agents = [10_000, 100][debug]
 default_n_rand_seeds = [500, 15][debug]
 
 base_vmmc = 0.4
 inc_vmmc_cov_levels = [base_vmmc + 0.1] + [0] # Must include 0 as that's the baseline
 vmmc_eff = 0.6
 
-figdir = os.path.join(paths.src.as_posix, 'figs', 'VMMC' if not debug else 'VMMC-debug')
+figdir = os.path.join(paths.src.as_posix(), 'figs', 'VMMC' if not debug else 'VMMC-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return_sim=False, analyze=False):
