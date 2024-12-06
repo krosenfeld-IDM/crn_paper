@@ -11,6 +11,7 @@ import argparse
 import sciris as sc
 
 from crn_paper.PPH_demographics import PPH
+from crn_paper import paths
 from plotting import plot_scenarios
 
 # Suppress warning from seaborn
@@ -82,10 +83,10 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
         'dt': 0.25,
     }
 
-    age_data = pd.read_csv('data/ssa_agedist.csv')
+    age_data = pd.read_csv(paths.src / 'data/ssa_agedist.csv')
     ppl = ss.People(n_agents, age_data=age_data)
 
-    asfr_data = pd.read_csv('data/ssa_asfr.csv')
+    asfr_data = pd.read_csv(paths.src / 'data/ssa_asfr.csv')
     preg_pars = {
         'fertility_rate': asfr_data, # per 1,000 live women.
         'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
@@ -93,7 +94,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     preg = PPH(preg_pars)
 
 
-    asmr_data = pd.read_csv('data/ssa_asmr.csv')
+    asmr_data = pd.read_csv(paths.src / 'data/ssa_asmr.csv')
     death_pars = {
         'death_rate': asmr_data, # rate per person
         'units': 1
