@@ -1,0 +1,11 @@
+[project]
+name = "crn-paper"
+version = "1.0.0"
+description = 'Code associated with the manuscript, "Taming Randomness in Agent-Based Models using Common Random Numbers"'
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "starsim @ git+https://github.com/starsimhub/starsim.git@f410b65fab66121d507730227c76842dd76da6a2",
+]
+
+#    "starsim @ git+https://github.com/starsimhub/starsim.git@5b9d4c5",
