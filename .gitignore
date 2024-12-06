@@ -1,3 +1,5 @@
 figs/*
 *.pyc
 .DS_Store
+
+.venv/
