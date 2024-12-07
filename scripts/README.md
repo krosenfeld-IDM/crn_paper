@@ -1,6 +1,6 @@
 # README
 
-Code status
+Code status (w/ `debug=True`):
 - `run_PPH.py`: Example 1
 - `run_SIR.py`: Example 2
 - `run_VMMC.py`: Example 3
