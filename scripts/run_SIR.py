@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from networkx.utils import pairwise
-
+from crn_paper import paths
 from plotting import plot_scenarios, plot_graph
 
 sc.options(interactive=True) # Assume not running interactively
@@ -23,11 +23,11 @@ warnings.filterwarnings("ignore", "use_inf_as_na")
 
 rngs = ['centralized', 'multi']
 
-debug = False
+debug = True
 default_n_agents = [10_000, 1_000][debug]
 default_n_rand_seeds = [250, 25][debug]
 
-basedir = os.path.join(os.getcwd(), 'figs')
+basedir = os.path.join(paths.src.as_posix(), 'figs')
 
 def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_initial_prevalence=False, pars=None, sir_pars=None):
 
