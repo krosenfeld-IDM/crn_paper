@@ -5,7 +5,5 @@ description = 'Code associated with the manuscript, "Taming Randomness in Agent-
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "starsim @ git+https://github.com/starsimhub/starsim.git@f410b65fab66121d507730227c76842dd76da6a2",
+    "starsim @ git+https://github.com/starsimhub/starsim.git@849245e803f1a727a83ea6c5a2e42ebe22c523f9",
 ]
-
-#    "starsim @ git+https://github.com/starsimhub/starsim.git@5b9d4c5",
