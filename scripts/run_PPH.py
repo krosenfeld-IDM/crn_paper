@@ -19,7 +19,7 @@ import warnings
 warnings.filterwarnings("ignore", "is_categorical_dtype")
 warnings.filterwarnings("ignore", "use_inf_as_na")
 
-debug = False
+debug = True
 
 covs = [0.1, 0.9] + [0]
 PPH_INTV_EFFICACY = 0.6 # 60% reduction in maternal mortality due to PPH with intervention
@@ -29,7 +29,7 @@ default_n_rand_seeds = [250, 3][debug]
 
 rngs = ['centralized', 'multi']
 
-figdir = os.path.join(os.getcwd(), 'figs', 'PPH' if not debug else 'PPH-debug')
+figdir = os.path.join(paths.src.as_posix(), 'figs', 'PPH' if not debug else 'PPH-debug')
 sc.path(figdir).mkdir(parents=True, exist_ok=True)
 channels = ['Births', 'Maternal Deaths', 'Total Deaths'] # Set to None for all channels
 

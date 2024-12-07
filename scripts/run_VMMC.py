@@ -25,7 +25,7 @@ sc.options(interactive=False) # Assume not running interactively
 rngs = ['centralized', 'multi']
 
 debug = True
-default_n_agents = [10_000, 100][debug]
+default_n_agents = [10_000, 1_000][debug]
 default_n_rand_seeds = [500, 15][debug]
 
 base_vmmc = 0.4
