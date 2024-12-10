@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "starsim @ git+https://github.com/starsimhub/starsim.git@849245e803f1a727a83ea6c5a2e42ebe22c523f9"
+    "starsim_ai @ git+https://github.com/starsimhub/starsim_ai.git@d2011b98ebcba7496784625d0ea9e88cbcfc3c9f"
 ]
