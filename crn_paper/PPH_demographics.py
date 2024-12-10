@@ -1,3 +1,4 @@
+
 """
 Pregnancy with avertable maternal mortality risk from postpartum hemorrhage (PPH)
 """
@@ -13,7 +14,7 @@ class PPH(ss.Pregnancy):
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
         super().__init__()
 
-        self.default_pars(
+        self.define_pars(
             inherit = True,
             p_infant_death = ss.bernoulli(p=0.5), # 50% chance of infant death if mother dies
         )
@@ -35,17 +36,16 @@ class PPH(ss.Pregnancy):
         Add tracking of infant deaths
         """
         super().init_results()
-        npts = self.sim.npts
-        self.results += [
-            ss.Result(self.name, 'infant_deaths', npts, dtype=int, scale=True, label='Infant Deaths'),
-            ss.Result(self.name, 'maternal_deaths', npts, dtype=int, scale=True, label='Maternal Deaths'),
-        ]
+        self.define_results(
+            ss.Result('infant_deaths', dtype=int, scale=True, label='Infant Deaths'),
+            ss.Result('maternal_deaths', dtype=int, scale=True, label='Maternal Deaths'),
+        )
         return
 
     def update_states(self):
         """ Update states """
 
-        ti = self.sim.ti
+        ti = self.ti
         deliveries = (self.pregnant & (self.ti_delivery <= ti)).uids # Call before update_states
 
         self._possible_maternal_death_uids = None
@@ -74,7 +74,7 @@ class PPH(ss.Pregnancy):
     def update_results(self):
         super().update_results()
 
-        ti = self.sim.ti
+        ti = self.ti
         people = self.sim.people
 
         # Results must be tracked here for intervention impact to be properly recorded

@@ -1,3 +1,4 @@
+
 """
 Example 2) Static networks with SIR disease dynamics + vaccination
 """
@@ -48,17 +49,17 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
     networks = ss.StaticNet(G)
 
     default_sir_pars = {
-        'beta': 75,
-        'dur_inf': ss.expon(scale=30/365),
-        'init_prev': 0,  # Will seed manually
-        'p_death': 0.05, # 5% chance of death
+        'beta': ss.beta(75),
+        'dur_inf': ss.expon(scale=ss.dur(30/365)),
+        'init_prev': ss.bernoulli(p=0),  # Will seed manually
+        'p_death': ss.bernoulli(p=0.05), # 5% chance of death
     }
     sir_pars = sc.mergedicts(default_sir_pars, sir_pars)
     sir = ss.SIR(sir_pars)
 
     default_pars = {
         'start': 2020,
-        'end': 2020.5,
+        'stop': 2020.5,
         'dt': 1/365,
         'rand_seed': rand_seed,
         'verbose': 0,
@@ -78,9 +79,9 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         )
         pars['interventions'] = [ MyIntervention ]
 
-    sim = ss.Sim(people=ppl, networks=networks, diseases=sir, pars=pars, label=lbl)
+    sim = ss.Sim(n_agents=n_agents, networks=networks, diseases=sir, pars=pars, label=lbl)
 
-    sim.initialize()
+    sim.init()
 
     # Infect agent zero to start the simulation
     # WARNING: Graph algorithms may place agent 0 non-randomly
@@ -88,14 +89,14 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, network=None, eff=0.8, fixed_ini
         uids = np.arange(n_agents//10)
     else:
         uids = np.array([n_agents//2])
-    sim.diseases.sir.set_prognoses(uids=ss.uids(uids), source_uids=None)
+    sim.diseases.sir.set_prognoses(uids=ss.uids(uids), sources=None)
 
     sim.run()
 
     sim.diseases['sir'].log.line_list.to_csv( os.path.join('figs', f'll_{cov}.csv') )
 
     df = pd.DataFrame( {
-        'year': sim.yearvec,
+        'time': sim.results.timevec,
         'Susceptible': sim.results.sir.n_susceptible,
         'Infected': sim.results.sir.n_infected,
         'Recovered': sim.results.sir.n_recovered,
@@ -182,10 +183,10 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
         cfgs = []
         for rs in range(n_seeds):
             graphs = {
-                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': 140}), # 115
-                'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': 10}),
-                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': 14}),
-                'Grid 2D':                      (Grid2D(m=s, n=s).G, {'beta': 18.5})
+                'Barabasi-Albert (m=1)':        (nx.barabasi_albert_graph(n=n_agents, m=1, seed=rs), {'beta': ss.beta(140)}), # 115
+                'Erdos-Renyi (p=4/N)':          (nx.fast_gnp_random_graph(n=n_agents, p=4/n_agents, seed=rs), {'beta': ss.beta(10)}),
+                'Watts-Strogatz (k=4, p=0.20)': (nx.connected_watts_strogatz_graph(n=n_agents, k=4, p=0.20, seed=rs), {'beta': ss.beta(14)}),
+                'Grid 2D':                      (Grid2D(m=s, n=s).G, {'beta': ss.beta(18.5)})
             }
             for name, (G,sir_pars) in graphs.items():
                 G.name = name
@@ -199,7 +200,7 @@ def sweep_network(n_agents=default_n_agents, n_seeds=default_n_rand_seeds):
                     cfgs.append({'network':G, 'sir_pars': sir_pars, 'cov':cov, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
 
         T = sc.tic()
-        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'eff': efficacy, 'fixed_initial_prevalence': False, 'pars': {'end':2022}}, iterkwargs=cfgs, die=True, serial=False)
+        results += sc.parallelize(run_sim, kwargs={'n_agents': n_agents, 'eff': efficacy, 'fixed_initial_prevalence': False, 'pars': {'stop':2022}}, iterkwargs=cfgs, die=True, serial=False)
         times[f'rng={rng}'] = sc.toc(T, output=True)
 
     print('Timings:', times)

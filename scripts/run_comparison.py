@@ -1,3 +1,4 @@
+
 """
 Compare two HIV simulations, one baseline and the other with ART
 """
@@ -33,8 +34,8 @@ sc.path(figdir).mkdir(parents=True, exist_ok=True)
 
 def run_scenario(n=10, rand_seed=0, analyze=True):
     sims = sc.parallelize(run_sim,
-                          kwargs={'n_agents':n, 'analyze': analyze, 'rand_seed': rand_seed, 'return_sim': True, 'art_eff': art_eff},
-                          iterkwargs=[{'cov':0.00, 'idx':0, 'rng':'multi'}, {'cov':0.10, 'idx':1, 'rng':'multi'}], die=False)
+                          kwargs={'n_agents': n, 'analyze': analyze, 'rand_seed': rand_seed, 'return_sim': True, 'art_eff': art_eff},
+                          iterkwargs=[{'cov': 0.00, 'idx': 0, 'rng': 'multi'}, {'cov': 0.10, 'idx': 1, 'rng': 'multi'}], die=False)
 
     for i, sim in enumerate(sims):
         sim.save(os.path.join(figdir, f'sim{i}.obj'))
@@ -49,10 +50,10 @@ def getpos(ti, g1, g2, guess=None, kind='bipartite'):
     n = len(nodes)
 
     if kind == 'radial':
-        pos = {i:(np.cos(2*np.pi*i/n), np.sin(2*np.pi*i/n)) for i in range(n)}
+        pos = {i: (np.cos(2 * np.pi * i / n), np.sin(2 * np.pi * i / n)) for i in range(n)}
         if guess:
             if len(guess) < n:
-                pos = {i:(np.cos(2*np.pi*i/n), np.sin(2*np.pi*i/n)) for i in range(n)}
+                pos = {i: (np.cos(2 * np.pi * i / n), np.sin(2 * np.pi * i / n)) for i in range(n)}
 
     elif kind == 'spring':
         pos = nx.spring_layout(g1[ti].graph, k=None, pos=guess, fixed=None, iterations=50, threshold=0.0001, weight=None, scale=1, center=None, dim=2, seed=None)
@@ -66,14 +67,14 @@ def getpos(ti, g1, g2, guess=None, kind='bipartite'):
 
         if guess:
             for i in guess.keys():
-                pos[i] = (pos[i][0], guess[i][1]) # Keep new x but carry over y
+                pos[i] = (pos[i][0], guess[i][1])  # Keep new x but carry over y
 
     elif kind == 'bipartite':
-        pos = {i:(nd['age'], 2*nd['female']-1 + np.random.uniform(-0.3, 0.3)) for i, nd in nodes.items()}
+        pos = {i: (nd['age'], 2 * nd['female'] - 1 + np.random.uniform(-0.3, 0.3)) for i, nd in nodes.items()}
 
         if guess:
             for i in guess.keys():
-                pos[i] = (pos[i][0], guess[i][1]) # Keep new x but carry over y
+                pos[i] = (pos[i][0], guess[i][1])  # Keep new x but carry over y
 
     return pos
 
@@ -83,28 +84,28 @@ def plot_graph(sim1, sim2):
     g2 = sim2.analyzers[0].graphs
 
     n = len(g1[-1].graph)
-    el = n <= 25 # Draw edge labels
+    el = n <= 25  # Draw edge labels
 
-    fig, axv = plt.subplots(1, 2, figsize=(10,5))
+    fig, axv = plt.subplots(1, 2, figsize=(10, 5))
     global ti
     timax = sim1.tivec[-1]
 
     global pos
     pos = {}
     pos[-1] = getpos(0, g1, g2, kind=kind)
-    for ti in range(timax+1):
-        pos[ti] = getpos(ti, g1, g2, guess=pos[ti-1], kind=kind)
+    for ti in range(timax + 1):
+        pos[ti] = getpos(ti, g1, g2, guess=pos[ti - 1], kind=kind)
 
-    ti = -1 # Initial state is -1, representing the state before the first step
+    ti = -1  # Initial state is -1, representing the state before the first step
 
     def on_press(event):
         print('press', event.key)
         sys.stdout.flush()
         global ti, pos
         if event.key == 'right':
-            ti = min(ti+1, timax)
+            ti = min(ti + 1, timax)
         elif event.key == 'left':
-            ti = max(ti-1, -1)
+            ti = max(ti - 1, -1)
 
         # Clear
         axv[0].clear()
@@ -127,24 +128,24 @@ def plot_graph(sim1, sim2):
     return fig
 
 
-def plot_ts():
+def plot_ts(sim1, sim2):
     # Plot timeseries summary
-    fig, axv = plt.subplots(2,2, sharex=True)
-    axv[0,0].plot(sim1.tivec, sim1.results.hiv.art_coverage, label=sim1.label)
-    axv[0,0].plot(sim2.tivec, sim2.results.hiv.art_coverage, ls=':', label=sim2.label)
-    axv[0,0].set_title('ART Coverage')
+    fig, axv = plt.subplots(2, 2, sharex=True)
+    axv[0, 0].plot(sim1.tivec, sim1.results.hiv.art_coverage, label=sim1.label)
+    axv[0, 0].plot(sim2.tivec, sim2.results.hiv.art_coverage, ls=':', label=sim2.label)
+    axv[0, 0].set_title('ART Coverage')
 
-    axv[0,1].plot(sim1.tivec, sim1.results.hiv.cum_infections, label=sim1.label)
-    axv[0,1].plot(sim2.tivec, sim2.results.hiv.cum_infections, ls=':', label=sim2.label)
-    axv[0,1].set_title('Cumulative HIV infections')
+    axv[0, 1].plot(sim1.tivec, sim1.results.hiv.cum_infections, label=sim1.label)
+    axv[0, 1].plot(sim2.tivec, sim2.results.hiv.cum_infections, ls=':', label=sim2.label)
+    axv[0, 1].set_title('Cumulative HIV infections')
 
-    axv[1,0].plot(sim1.tivec, sim1.results.hiv.new_deaths.cumsum(), label=sim1.label)
-    axv[1,0].plot(sim2.tivec, sim2.results.hiv.new_deaths.cumsum(), ls=':', label=sim2.label)
-    axv[1,0].set_title('Cumulative HIV Deaths')
+    axv[1, 0].plot(sim1.tivec, sim1.results.hiv.new_deaths.cumsum(), label=sim1.label)
+    axv[1, 0].plot(sim2.tivec, sim2.results.hiv.new_deaths.cumsum(), ls=':', label=sim2.label)
+    axv[1, 0].set_title('Cumulative HIV Deaths')
 
-    axv[1,1].plot(sim1.tivec, sim1.results.hiv.prevalence, label=sim1.label)
-    axv[1,1].plot(sim2.tivec, sim2.results.hiv.prevalence, ls=':', label=sim2.label)
-    axv[1,1].set_title('HIV Prevalence')
+    axv[1, 1].plot(sim1.tivec, sim1.results.hiv.prevalence, label=sim1.label)
+    axv[1, 1].plot(sim2.tivec, sim2.results.hiv.prevalence, ls=':', label=sim2.label)
+    axv[1, 1].set_title('HIV Prevalence')
 
     plt.legend()
     return fig
@@ -172,7 +173,7 @@ def analyze_people(sim):
     dead_year[dead] = sim.yearvec[p.hiv.ti_dead.raw[ever_alive][dead].astype(int)]
 
     df = pd.DataFrame({
-        'id': [hash((p.slot[i], first_year[i], p.female[i])) for i in ever_alive], # if slicing, don't need ._view,
+        'id': [hash((p.slot[i], first_year[i], p.female[i])) for i in ever_alive],  # if slicing, don't need ._view,
         'first_year': first_year,
         'last_year': last_year,
         'infected_year': infected_year,
@@ -187,7 +188,6 @@ def analyze_people(sim):
 
 
 def plot_longitudinal(sim1, sim2):
-
     df1 = analyze_people(sim1)
     df1['sim'] = 'Baseline'
     df2 = analyze_people(sim2)
@@ -197,9 +197,9 @@ def plot_longitudinal(sim1, sim2):
 
     df['ypos'] = pd.factorize(df.index.values)[0]
     N = df['sim'].nunique()
-    height = 0.5/N
+    height = 0.5 / N
 
-    fig, ax = plt.subplots(figsize=(10,6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     # For the legend:
     fy = df['first_year'].min()
@@ -210,10 +210,9 @@ def plot_longitudinal(sim1, sim2):
     plt.scatter(y=0, x=fy, color='c', marker='|', label='Death')
 
     for n, (lbl, data) in enumerate(df.groupby('sim')):
-        yp = data['ypos'] + n/(N+1) # Leave space
+        yp = data['ypos'] + n / (N + 1)  # Leave space
 
         plt.barh(y=yp, left=data['first_year'], width=data['last_year'] - data['first_year'], color='k', height=height)
-
 
         # Infected
         infected = ~data['infected_year'].isna()
@@ -260,7 +259,7 @@ if __name__ == '__main__':
         plot_graph(sim1, sim2)
 
     if do_plot_timeseries:
-        plot_ts()
+        plot_ts(sim1, sim2)
 
     plt.show()
     print('Done')

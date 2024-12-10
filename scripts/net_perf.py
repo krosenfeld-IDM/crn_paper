@@ -1,3 +1,4 @@
+
 # Network performance scaling, used to produce Figure C2
 
 import starsim as ss
@@ -60,14 +61,14 @@ def get_net(net_type, n_agents):
 
 
 def run_network(n_agents, n_steps, network, rand_seed, rng, idx):
-    sim = ss.Sim(n_agents=n_agents, networks=network, label=f'{network}_N{n_agents}_S{rand_seed}')
-    sim.initialize()
+    sim = ss.Sim(pars=dict(n_agents=n_agents, networks=network, label=f'{network}_N{n_agents}_S{rand_seed}'))
+    sim.init()
 
-    n = sim.networks[0]
-    T = sc.tic()
+    n = sim.networks()[0]
+    T = sc.timer()
     for i in range(n_steps):
         n.update()
-    dt = sc.toc(T, output=True) / n_steps
+    dt = T.toc(output=True) / n_steps
 
     return (dt, n_agents, network['type'], rand_seed, rng, idx)
 

@@ -1,3 +1,4 @@
+
 """
 Example 3) Impact of voluntary medical male circumcision (VMMC) on HIV.
 """
@@ -71,7 +72,7 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
 
     default_pars = {
         'start': 1980,
-        'end': 2070,
+        'stop': 2070,
         'dt': 1/12,
         'rand_seed': rand_seed,
         'verbose': 0,
@@ -88,14 +89,14 @@ def run_sim(n_agents, idx, cov, rand_seed, rng, pars=None, hiv_pars=None, return
     interventions += [ VMMC(year=[2007, 2020, 2025, 2030], coverage=[0, base_vmmc, cov, 0]) ]
 
     sim = ss.Sim(people=ppl, networks=networks, diseases=[hiv], demographics=[pregnancy, deaths], interventions=interventions, pars=pars, label=lbl)
-    sim.initialize()
+    sim.init()
     sim.run()
 
     if return_sim:
         return sim
 
     df = pd.DataFrame( {
-        'year': sim.yearvec,
+        'year': sim.t.timevec,
         'Births': sim.results.pregnancy.births.cumsum(),
         'Deaths': sim.results.hiv.new_deaths.cumsum(),
         'Infections': sim.results.hiv.cum_infections,

@@ -1,3 +1,4 @@
+
 # Analyzer used to plot a graphical representation of contact networks over time
 
 import starsim as ss
@@ -66,7 +67,7 @@ class GraphAnalyzer(ss.Analyzer):
 
         edges = sim.networks[network.lower()].to_df()
 
-        idx = sim.ti if not init else -1
+        idx = sim.t.ti if not init else -1
         self.graphs[idx] = Graph(nodes, edges)
         return
 

@@ -1,3 +1,4 @@
+
 """
 Example 1) Postpartum hemorrhage (PPH) simulation with an intervention like E-MOTIVE
 """
@@ -42,27 +43,29 @@ class PPH_Intv(ss.Intervention):
 
         super().__init__(**kwargs)
 
-        self.p_pphintv = ss.bernoulli(p=lambda self, sim, uids: np.interp(sim.year, self.year, self.coverage))
+        self.p_pphintv = ss.bernoulli(p=lambda self, sim, uids: np.interp(sim.t.now('year'), self.year, self.coverage))
         self.eff_pphintv = ss.bernoulli(p=PPH_INTV_EFFICACY)
         return
 
     def init_pre(self, sim):
         super().init_pre(sim)
-        self.results += ss.Result(self.name, 'n_pphintv', sim.npts, dtype=int)
-        self.results += ss.Result(self.name, 'n_mothers_saved', sim.npts, dtype=int)
+        self.define_results(
+            ss.Result('n_pphintv', dtype=int, label='Number of PPH interventions'),
+            ss.Result('n_mothers_saved', dtype=int, label='Number of mothers saved'),
+        )
         self.initialized = True
         return
 
-    def apply(self, sim):
-        if sim.year < self.year[0]:
+    def step(self):
+        if self.sim.t.now('year') < self.year[0]:
             return
 
-        pph = sim.demographics['pph']
-        maternal_deaths = (pph.ti_dead <= sim.ti).uids
+        pph = self.sim.demographics['pph']
+        maternal_deaths = (pph.ti_dead <= self.sim.ti).uids
         receive_pphintv = self.p_pphintv.filter(maternal_deaths)
         pph_deaths_averted = self.eff_pphintv.filter(receive_pphintv)
         pph.ti_dead[pph_deaths_averted] = np.nan # Used to request death
-        sim.people.ti_dead[pph_deaths_averted] = np.nan # Used to actually "remove" people
+        self.sim.people.ti_dead[pph_deaths_averted] = np.nan # Used to actually "remove" people
 
         # Add results
         self.results['n_pphintv'][self.sim.ti] = len(receive_pphintv)
@@ -77,7 +80,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     # Make people using the distribution of the population by age
     pars = {
         'start': 2024,
-        'end': 2030,
+        'stop': 2030,
         'rand_seed': rand_seed,
         'verbose': 0,
         'dt': 0.25,
@@ -89,7 +92,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     asfr_data = pd.read_csv(paths.src / 'data/ssa_asfr.csv')
     preg_pars = {
         'fertility_rate': asfr_data, # per 1,000 live women.
-        'maternal_death_prob': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
+        'p_maternal_death': 1/1000, # Maternal death prob due to PPH per live birth (additive to demographic deaths)
     }
     preg = PPH(preg_pars)
 
@@ -97,7 +100,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     asmr_data = pd.read_csv(paths.src / 'data/ssa_asmr.csv')
     death_pars = {
         'death_rate': asmr_data, # rate per person
-        'units': 1
+        'rate_units': 1
     }
     deaths = ss.Deaths(death_pars)
 
@@ -113,7 +116,7 @@ def run_sim(n_agents=default_n_agents, rand_seed=0, rng='multi', idx=0, cov=0):
     sim.run()
 
     df = pd.DataFrame( {
-        'year': sim.yearvec,
+        'year': sim.t.yearvec,
         'Births': sim.results.pph.births.cumsum(),
         'CBR': sim.results.pph.cbr,
         'New Deaths': sim.results['new_deaths'],
