@@ -12,91 +12,113 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 # Avoid numpy multithreading
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
-
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
 n_steps = 5
 n_seeds = 3
-net_types = ['Embedding', 'ErdosRenyi', 'Disk', 'Random'] # 'MF'
+net_types = ['Embedding', 'ErdosRenyi', 'Disk', 'Random']  # 'MF' excluded for now
 rngs = ['multi']
-n_agents = np.logspace(1, np.log10(100_000), 9)[:-1]
+n_agents = np.logspace(1, np.log10(100_000), 9, dtype=int)[:-1]
 
 basedir = os.path.join(os.getcwd(), 'figs')
 figdir = os.path.join(basedir, 'Net_perf')
-sc.path(figdir).mkdir(parents=True, exist_ok=True)
+os.makedirs(figdir, exist_ok=True)
 
 def get_net(net_type, n_agents):
     nt = net_type.lower()
     if nt == 'disk':
-        return dict(type='disk', r=0.2, v=0.2 * 365)
+        return ss.DiskNet(pars={'r': 0.2, 'v': 0.2 * 365})
 
     elif nt == 'erdosrenyi':
-        return dict(type='erdosrenyi', p = 0.9/(n_agents-1))
+        return ss.ErdosRenyiNet(pars={'p': 0.9 / (n_agents - 1)})
 
     elif nt == 'embedding':
-        return dict(type='embedding', 
-                duration = ss.constant(0),
-                participation = ss.bernoulli(p=1),
-                debut = ss.constant(v=0),
-                rel_part_rates = 1.0
-            )
+        return ss.EmbeddingNet(pars={
+            'duration': ss.dur(0),
+            'participation': ss.bernoulli(p=1),
+            'debut': ss.dur(0),
+            'rel_part_rates': 1.0
+        })
 
     elif nt == 'random':
-        return dict(type='random', 
-                n_contacts = ss.constant(10),
-            )
+        return ss.RandomNet(pars={'n_contacts': ss.constant(10)})
 
     elif nt == 'mf':
-        return dict(type='mf', 
-                duration = ss.constant(0),
-                participation = ss.bernoulli(p=1),
-                debut = ss.normal(loc=0),
-                rel_part_rates = 1.0,
-            )
+        return ss.MFNet(pars={
+            'duration': ss.dur(0),
+            'participation': ss.bernoulli(p=1),
+            'debut': ss.dur(0),
+            'rel_part_rates': 1.0
+        })
 
-    raise Exception(f'Unknown net {net_type}')
-
+    raise ValueError(f'Unknown network type: {net_type}')
 
 def run_network(n_agents, n_steps, network, rand_seed, rng, idx):
-    sim = ss.Sim(n_agents=n_agents, networks=network, label=f'{network}_N{n_agents}_S{rand_seed}')
-    sim.initialize()
+    sim = ss.Sim(
+        pars={
+            'n_agents': n_agents,
+            'networks': [network],
+            'label': f'{network.name}_N{n_agents}_S{rand_seed}'
+        }
+    )
+    sim.init()
+    sim.t.ti = 0
 
-    n = sim.networks[0]
-    T = sc.tic()
-    for i in range(n_steps):
-        n.update()
-    dt = sc.toc(T, output=True) / n_steps
+    network_module = sim.networks[0]
+    start_time = sc.tic()
+    for _ in range(n_steps):
+        network_module.step()
+    elapsed_time = sc.toc(start_time, output=True) / n_steps
 
-    return (dt, n_agents, network['type'], rand_seed, rng, idx)
-
+    return elapsed_time, n_agents, network.name, rand_seed, rng, idx
 
 results = []
 for rng in rngs:
-    ss.options(_centralized = rng=='centralized')
-    cfgs = []
+    ss.options._centralized = (rng == 'centralized')  # Correctly toggle centralized mode
+    config_list = []
     for net_type in net_types:
         for n in n_agents:
+            if net_type == 'embedding' and n >= 50_000:
+                continue  # Skip embedding networks over 50k agents
             net = get_net(net_type, n)
 
-            seeds = n_seeds
-            steps = n_steps
-            if n >= 50_000:
-                if net_type == 'Embedding':
-                    continue # Skip Embedding over 50k agents
+            for seed in range(n_seeds):
+                config_list.append({
+                    'n_agents': n,
+                    'n_steps': n_steps,
+                    'network': net,
+                    'rand_seed': seed,
+                    'rng': rng,
+                    'idx': len(config_list)
+                })
 
-            for rs in range(seeds):
-                cfgs.append({'n_agents':n, 'n_steps':n_steps, 'network':net, 'rand_seed':rs, 'rng':rng, 'idx':len(cfgs)})
-    results += sc.parallelize(run_network, iterkwargs=cfgs, die=True, serial=True) # , maxmem=0.8
+    # Run the networks in parallel
+    results += sc.parallelize(run_network, iterkwargs=config_list, die=True, serial=True)
 
+# Save results
 df = pd.DataFrame(results, columns=['Time per Step', 'Num Agents', 'Network', 'Seed', 'Generator', 'Index'])
-df.to_csv(os.path.join(figdir, 'perf.csv'))
+df.to_csv(os.path.join(figdir, 'perf.csv'), index=False)
 
-dfm = pd.melt(df, id_vars=['Network', 'Num Agents', 'Generator'], var_name='Channel', value_name='Result')
+# Plot results
+df_melted = pd.melt(df, id_vars=['Network', 'Num Agents', 'Generator'], 
+                    var_name='Channel', value_name='Result')
 
-col_order = ['Time per Step']
-g = sns.relplot(kind='line', data=dfm, col='Channel', col_order=col_order, hue='Network', style='Generator', x='Num Agents', y='Result', facet_kws={'sharey':False}, height=3, aspect=1.7, marker='o')
-g.set(xscale='log', yscale='log')
+sns.relplot(
+    kind='line',
+    data=df_melted,
+    col='Channel',
+    col_order=['Time per Step'],
+    hue='Network',
+    style='Generator',
+    x='Num Agents',
+    y='Result',
+    facet_kws={'sharey': False},
+    height=3,
+    aspect=1.7,
+    marker='o'
+).set(xscale='log', yscale='log')
 
-sc.savefig(os.path.join(figdir, 'perf.pdf'), g.figure, bbox_inches='tight', transparent=True)
+output_path = os.path.join(figdir, 'perf.pdf')
+sc.savefig(output_path, transparent=True, bbox_inches='tight')

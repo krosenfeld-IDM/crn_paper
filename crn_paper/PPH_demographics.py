@@ -11,11 +11,11 @@ class PPH(ss.Pregnancy):
     # Postpartum hemorrhage (PPH) --> maternal and infant death
 
     def __init__(self, pars=None, par_dists=None, metadata=None, **kwargs):
-        super().__init__()
+        super().__init__(pars=pars, metadata=metadata, **kwargs)  # Ensure parent init is correctly called
 
-        self.default_pars(
-            inherit = True,
-            p_infant_death = ss.bernoulli(p=0.5), # 50% chance of infant death if mother dies
+        self.define_pars(
+            inherit=True,
+            p_infant_death=ss.bernoulli(p=0.5),  # 50% chance of infant death if mother dies
         )
         self.update_pars(pars, **kwargs)
 
@@ -23,30 +23,29 @@ class PPH(ss.Pregnancy):
         self._possible_maternal_death_uids = None
         self._possible_infant_death_uids = None
 
-        return
-
     def init_pre(self, sim):
         super().init_pre(sim)
-        assert 'maternalnet' in sim.networks, 'PPH demographics requires the MaternalNet'
+        if 'maternalnet' not in sim.networks:
+            raise ValueError('PPH module requires a "maternalnet" network in the simulation.')
         return
 
     def init_results(self):
         """
-        Add tracking of infant deaths
+        Add tracking of infant and maternal deaths.
         """
         super().init_results()
-        npts = self.sim.npts
-        self.results += [
-            ss.Result(self.name, 'infant_deaths', npts, dtype=int, scale=True, label='Infant Deaths'),
-            ss.Result(self.name, 'maternal_deaths', npts, dtype=int, scale=True, label='Maternal Deaths'),
-        ]
+        npts = self.t.npts
+        self.define_results(
+            ss.Result(self.name, 'infant_deaths', shape=npts, dtype=int, scale=True, label='Infant Deaths'),
+            ss.Result(self.name, 'maternal_deaths', shape=npts, dtype=int, scale=True, label='Maternal Deaths'),
+        )
         return
 
     def update_states(self):
         """ Update states """
 
-        ti = self.sim.ti
-        deliveries = (self.pregnant & (self.ti_delivery <= ti)).uids # Call before update_states
+        ti = self.t.ti
+        deliveries = (self.pregnant & (self.ti_delivery <= ti)).uids  # Track deliveries at this timestep
 
         self._possible_maternal_death_uids = None
         self._possible_infant_death_uids = None
@@ -54,15 +53,16 @@ class PPH(ss.Pregnancy):
         super().update_states()
 
         if np.any(deliveries):
-            # Infant deaths due to death of mother
+            # Infant deaths due to death of the mother
             mn = self.sim.networks['maternalnet'].to_df()
 
             maternal_deaths = (self.ti_dead <= ti).uids
             if np.any(maternal_deaths):
                 self._possible_maternal_death_uids = maternal_deaths
-                # Find infants, not using find_contacts because that is bidirectional
-                # And only keep edges where dur >= 0, others are inactive
-                infant_uids_mm = mn.loc[(mn['p1'].isin(maternal_deaths)) & (mn['dur'] >= 0)]['p2'].values
+
+                # Find infants linked to maternal deaths
+                valid_edges = (mn['p1'].isin(maternal_deaths)) & (mn['dur'] >= 0)
+                infant_uids_mm = mn.loc[valid_edges, 'p2'].values
 
                 infant_deaths = ss.uids(self.pars.p_infant_death.filter(infant_uids_mm))
                 if np.any(infant_deaths):
@@ -72,12 +72,13 @@ class PPH(ss.Pregnancy):
         return
 
     def update_results(self):
+        """ Update results tracking """
+
         super().update_results()
 
-        ti = self.sim.ti
+        ti = self.t.ti
         people = self.sim.people
 
-        # Results must be tracked here for intervention impact to be properly recorded
         if self._possible_maternal_death_uids is not None:
             maternal_deaths = people.ti_dead[self._possible_maternal_death_uids] <= ti
             self.results['maternal_deaths'][ti] = np.count_nonzero(maternal_deaths)
