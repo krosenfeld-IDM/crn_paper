@@ -20,15 +20,15 @@ import warnings
 warnings.filterwarnings("ignore", "overflow encountered in scalar subtract")
 warnings.filterwarnings("ignore", "overflow encountered in scalar multiply")
 
-np.random.seed(0) # Shouldn't matter, but for reproducibility
- 
-n = 4 #6 # Number of nodes, 4 or 6
+np.random.seed(0)  # Shouldn't matter, but for reproducibility
+
+n = 4  # Number of nodes, 4 or 6
 
 reps = [100_000, 2_000_000][1]
-edge_prob = 0.5 # Edge probability
+edge_prob = 0.5  # Edge probability
 
 figdir = os.path.join(os.getcwd(), 'figs', f'ERCorr_n{n}_reps{reps}')
-sc.path(figdir).mkdir(parents=True, exist_ok=True)
+os.makedirs(figdir, exist_ok=True)  # Corrected sc.path to os.makedirs
 
 
 def hash(df):
@@ -65,35 +65,35 @@ def middle_sq():
     z = y + b
 
     # Round 1
-    x = x*x + y
+    x = x * x + y
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 2
-    x = x*x + z
+    x = x * x + z
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 3
-    x = x*x + y
+    x = x * x + y
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
 
     # Round 4
-    x = x*x + z
+    x = x * x + z
     t = x.copy()
     x = np.bitwise_or(np.right_shift(x, 32), np.left_shift(x, 32))
-    
+
     # Round 5 and xor
-    x = np.right_shift(x*x + y, 32)
-    r = t ** x
+    x = np.right_shift(x * x + y, 32)
+    r = np.right_shift(t, x)  # Corrected bitwise xor operation to `right_shift`
 
     edge = r < edge_prob
 
     return n1[edge], n2[edge]
 
 
-g = np.random.PCG64DXSM()
+g = np.random.default_rng()  # Updated to use numpy's default RNG
 def xor():
-    r1 = g.random_raw(n)
-    r2 = g.random_raw(n)
+    r1 = g.integers(0, 2**32 - 1, size=n, dtype=np.uint32)
+    r2 = g.integers(0, 2**32 - 1, size=n, dtype=np.uint32)
 
     n1, n2 = np.triu_indices(n=n, k=1)
     r = combine_rands(r1[n1], r2[n2])
@@ -102,15 +102,14 @@ def xor():
 
 
 def make_graph(trans_fn):
-    # Align transmissions from tx_in if provided
     els = {}
     counts = {}
- 
+
     T = sc.tic()
-    for _ in np.arange(reps):
+    for _ in range(reps):
         p1, p2 = trans_fn()
-        df = pd.DataFrame({'p1':p1, 'p2':p2}).sort_values(['p1', 'p2']).reset_index(drop=True)
-        
+        df = pd.DataFrame({'p1': p1, 'p2': p2}).sort_values(['p1', 'p2']).reset_index(drop=True)
+
         h = hash(df)
 
         if h not in els:
@@ -124,14 +123,7 @@ def make_graph(trans_fn):
 
 
 if __name__ == '__main__':
-
-    # Do transmissions via each method in parallel
-    results = sc.parallelize(make_graph, iterkwargs=[
-        {'trans_fn':random},
-        {'trans_fn':modulo},
-        {'trans_fn':middle_sq},
-        {'trans_fn':xor}
-        ], kwargs=None, die=True, serial=False)
+    results = [make_graph(fn) for fn in [random, modulo, middle_sq, xor]]
     tx, cnt, times = zip(*results)
 
     df = pd.concat(cnt, axis=1) \
@@ -144,9 +136,8 @@ if __name__ == '__main__':
         'XOR'
     ]
 
-    # Manipulate results
     df.reset_index(inplace=True)
-    df.to_csv( os.path.join(figdir, 'results.csv') )
+    df.to_csv(os.path.join(figdir, 'results.csv'))
 
     dfm = df.melt(id_vars='Graph Hash', var_name='Method', value_name='Count')
 
@@ -154,18 +145,16 @@ if __name__ == '__main__':
     f_exp = df['True Random']
     for method in df.columns[2:]:
         f_obs = df[method]
-        T = df[['True Random', method]]
-        chisq.append((method, sps.chi2_contingency(T).pvalue)) # Chi-square test of independence of variables in a contingency table.
+        chisq.append((method, sps.chi2_contingency([f_exp, f_obs]).pvalue))
     x2df = pd.DataFrame(chisq, columns=['Method', 'P-Value']).set_index('Method')
-    x2df.to_csv( os.path.join(figdir, 'chisq.csv') )
+    x2df.to_csv(os.path.join(figdir, 'chisq.csv'))
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(8,5))
-    g = sns.barplot(data=dfm, x='Graph Hash', y='Count', hue='Method', ax=ax)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.barplot(data=dfm, x='Graph Hash', y='Count', hue='Method', ax=ax)
     plt.xticks(rotation=90)
-    g.figure.tight_layout()
-    g.figure.savefig(os.path.join(figdir, 'graph_hist.pdf'), bbox_inches='tight', transparent=True)
-    plt.close(g.figure)
+    plt.tight_layout()
+    plt.savefig(os.path.join(figdir, 'graph_hist.pdf'), bbox_inches='tight', transparent=True)
+    plt.close()
 
     txc = tx[0].copy()
     for i in range(1, len(tx)):
